@@ -1,0 +1,36 @@
+{
+  "files": {
+    "prisma/schema.prisma": "Complete Prisma schema with all models (User, Project, Room, Asset, Generation, Subscription, CreditTransaction, Order, Team, TeamMember) and enums",
+    "lib/prisma.ts": "Prisma client singleton instance",
+    "lib/logger.ts": "Structured logging utility",
+    "lib/validate.ts": "Zod validation schemas and utilities",
+    "lib/blob.ts": "Vercel Blob storage utilities (upload, delete, metadata)",
+    "lib/gemini.ts": "Gemini 2.5 Flash AI integration with MASTER_AI_PROMPT",
+    "lib/masks.ts": "SAM segmentation mask generation (with mock fallback)",
+    "lib/credits.ts": "Credit system with ACID-safe transactions",
+    "lib/razorpay.ts": "Razorpay integration (subscriptions, orders, webhook verification)",
+    "lib/auth.ts": "Authentication helpers (getCurrentUser, requireAuth, etc.)",
+    "lib/auth-config.ts": "NextAuth v5 configuration",
+    "app/api/auth/[...nextauth]/route.ts": "NextAuth API route handler",
+    "app/api/upload/route.ts": "File upload API endpoint",
+    "app/api/generate/route.ts": "Room redesign generation API",
+    "app/api/replace-item/route.ts": "Furniture replacement API",
+    "app/api/moodboard/route.ts": "Moodboard generation API",
+    "app/api/shopping-list/route.ts": "Shopping list generation API",
+    "app/api/razorpay/create-subscription/route.ts": "Create Razorpay subscription",
+    "app/api/razorpay/cancel-subscription/route.ts": "Cancel Razorpay subscription",
+    "app/api/razorpay/create-order/route.ts": "Create credit pack order",
+    "app/api/razorpay/verify-webhook/route.ts": "Razorpay webhook handler with signature verification",
+    "actions/projects.ts": "Project CRUD server actions",
+    "actions/rooms.ts": "Room CRUD server actions",
+    "actions/generation.ts": "AI generation server actions (redesign, replace, moodboard, shopping list)",
+    "actions/user.ts": "User profile and credits server actions",
+    "middleware.ts": "Route protection middleware",
+    "types/next-auth.d.ts": "NextAuth TypeScript type definitions",
+    "package.json": "Updated with all backend dependencies",
+    "instructions.md": "Complete setup and deployment guide",
+    ".env.example": "Environment variables template"
+  },
+  "instructions.md": "See instructions.md for full setup instructions including:\n- Database setup (Neon PostgreSQL)\n- NextAuth configuration (Email + Google)\n- Razorpay setup (subscriptions, orders, webhooks)\n- Gemini AI setup\n- Vercel Blob storage\n- Environment variables\n- Deployment guide\n- Troubleshooting"
+}
+
