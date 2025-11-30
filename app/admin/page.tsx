@@ -196,7 +196,7 @@ export default function AdminPage() {
                     </TableCell>
                     <TableCell>{getPlanBadge(user.plan)}</TableCell>
                     <TableCell>{user.credits}</TableCell>
-                    <TableCell>{user.projects}</TableCell>
+                    {/* <TableCell>{user.projects}</TableCell> */}
                     <TableCell>{new Date(user.joinedAt).toLocaleDateString()}</TableCell>
                     <TableCell>{getStatusBadge(user.status)}</TableCell>
                     <TableCell>

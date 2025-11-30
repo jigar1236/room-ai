@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     const dbSubscription = await prisma.subscription.create({
       data: {
         userId,
-        razorpaySubscriptionId: subscription.id,
+        // razorpaySubscriptionId: subscription.id,
         razorpayPlanId: validated.planId,
         status: "ACTIVE",
         planName: validated.planId, // Would map to actual plan name
@@ -49,17 +49,17 @@ export async function POST(request: NextRequest) {
     });
 
     logger.info("Subscription created", {
-      subscriptionId: subscription.id,
+      // subscriptionId: subscription.id,
       userId,
     });
 
     return NextResponse.json({
       success: true,
       subscription: {
-        id: subscription.id,
-        status: subscription.status,
-        planId: subscription.plan_id,
-        dbId: dbSubscription.id,
+        // id: subscription.id,
+        // status: subscription.status,
+        // planId: subscription.plan_id,
+        //  dbId: dbSubscription.id,
       },
     });
   } catch (error) {

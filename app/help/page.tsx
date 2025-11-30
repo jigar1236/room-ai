@@ -9,12 +9,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+// import {
+//   Accordion,
+//   AccordionContent,
+//   AccordionItem,
+//   AccordionTrigger,
+// } from "@/components/ui/accordion";
 import {
   HelpCircle,
   Mail,
@@ -183,7 +183,7 @@ export default function HelpPage() {
               Quick answers to common questions
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          {/* <CardContent>
             <Accordion type="single" collapsible className="w-full">
               {faqs.map((faq, index) => (
                 <AccordionItem key={index} value={`item-${index}`}>
@@ -196,7 +196,7 @@ export default function HelpPage() {
                 </AccordionItem>
               ))}
             </Accordion>
-          </CardContent>
+          </CardContent> */}
         </Card>
 
         {/* Still Need Help */}

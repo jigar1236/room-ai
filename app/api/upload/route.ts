@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
 import { requireUserId } from "@/lib/auth";
-import { uploadRoomImage } from "@/actions/generation";
-import { validateImageFile } from "@/lib/validate";
+import { uploadRoomImage } from "@/lib/blob";
 import { logger } from "@/lib/logger";
+import { validateImageFile } from "@/lib/validate";
+import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,14 +26,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Upload via server action - new signature: (projectId, file)
-    const result = await uploadRoomImage(projectId, file);
+    const result = await uploadRoomImage(file as File, projectId);
 
-    logger.info("File uploaded via API", { roomId: result.roomId, projectId, userId });
+    logger.info("File uploaded via API", { url: result.url, key: result.key, userId });
 
     return NextResponse.json({
       success: true,
-      roomId: result.roomId,
-      imageUrl: result.imageUrl,
+      url: result.url,
+      size: result.size,
+      mimeType: result.mimeType,
     });
   } catch (error) {
     logger.error("Upload API error", error);

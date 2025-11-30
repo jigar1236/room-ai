@@ -4,10 +4,10 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Heart, Download, Maximize2 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { RoomOutput } from "@/lib/mock-data"
+import type { GeneratedImage } from "@prisma/client"
 
 interface OutputImageCardProps {
-  output: RoomOutput
+  output: GeneratedImage
   onFavorite?: (id: string) => void
   onDownload?: (id: string) => void
   onExpand?: (id: string) => void
@@ -33,13 +33,13 @@ export function OutputImageCard({ output, onFavorite, onDownload, onExpand }: Ou
     <Card className="group overflow-hidden">
       <div className="relative aspect-video overflow-hidden">
         <img
-          src={output.image || "/placeholder.svg"}
-          alt={output.style}
+          src={output.imageUrl || "/placeholder.svg"}
+          alt={output.imageKey}
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
         <div className="absolute bottom-0 left-0 right-0 p-3 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-          <span className="text-white text-sm font-medium">{output.style}</span>
+          <span className="text-white text-sm font-medium">{(output.metadata as Record<string, string>)?.style}</span>
           <div className="flex items-center gap-1">
             <Button
               size="icon"
@@ -65,7 +65,7 @@ export function OutputImageCard({ output, onFavorite, onDownload, onExpand }: Ou
       </div>
       <CardContent className="p-3">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-foreground">{output.style}</span>
+          <span className="text-sm font-medium text-foreground">{(output.metadata as Record<string, string>)?.style}</span>
           <span className="text-xs text-muted-foreground">{new Date(output.createdAt).toLocaleDateString()}</span>
         </div>
       </CardContent>

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUserId } from "@/lib/auth";
-import { createOrder, getCreditPackPrice } from "@/lib/razorpay";
+import { createOrder } from "@/lib/razorpay";
 import { CreateOrderSchema } from "@/lib/validate";
 import { prisma } from "@/lib/prisma";
 import { logger } from "@/lib/logger";
@@ -13,45 +13,38 @@ export async function POST(request: NextRequest) {
     const validated = CreateOrderSchema.parse(body);
 
     // Calculate amount in paise
-    const amount = getCreditPackPrice(validated.credits) * 100; // Convert to paise
+      const amount = validated.credits * 10; // Convert to paise
 
     // Create Razorpay order
-    const order = await createOrder(
-      amount,
-      `credits-${userId}-${Date.now()}`,
-      {
-        userId,
-        credits: validated.credits,
-      }
-    );
+    // const order = await createOrder(amount, `credits-${userId}-${Date.now()}`);
 
-    // Create order record in database
-    const dbOrder = await prisma.order.create({
-      data: {
-        userId,
-        razorpayOrderId: order.id,
-        amount,
-        credits: validated.credits,
-        status: "pending",
-      },
-    });
+    // // Create order record in database
+    // const dbOrder = await prisma.order.create({
+    //   data: {
+    //     userId,
+    //     razorpayOrderId: order.id,
+    //     amount,
+    //     credits: validated.credits,
+    //     status: "pending",
+    //   },
+    // });
 
-    logger.info("Credit pack order created", {
-      orderId: order.id,
-      userId,
-      credits: validated.credits,
-      amount,
-    });
+    // logger.info("Credit pack order created", {
+    //   orderId: order.id,
+    //   userId,
+    //   credits: validated.credits,
+    //   amount,
+    // });
 
     return NextResponse.json({
       success: true,
-      order: {
-        id: order.id,
-        amount: order.amount,
-        currency: order.currency,
-        status: order.status,
-        dbId: dbOrder.id,
-      },
+      // order: {
+      //   id: order.id,
+      //   amount: order.amount,
+      //   currency: order.currency,
+      //   status: order.status,
+      //   dbId: dbOrder.id,
+      // },
     });
   } catch (error) {
     logger.error("Create order API error", error);

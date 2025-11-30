@@ -6,14 +6,21 @@ const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
 const RAZORPAY_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET;
 
-if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
-  throw new Error("Razorpay credentials not configured");
-}
+// Lazy initialization to avoid errors during build
+let razorpayInstance: Razorpay | null = null;
 
-export const razorpay = new Razorpay({
-  key_id: RAZORPAY_KEY_ID,
-  key_secret: RAZORPAY_KEY_SECRET,
-});
+function getRazorpay(): Razorpay {
+  if (!razorpayInstance) {
+    if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
+      throw new Error("Razorpay credentials not configured");
+    }
+    razorpayInstance = new Razorpay({
+      key_id: RAZORPAY_KEY_ID,
+      key_secret: RAZORPAY_KEY_SECRET,
+    });
+  }
+  return razorpayInstance;
+}
 
 /**
  * Verify Razorpay webhook signature using SHA256 HMAC
@@ -23,7 +30,9 @@ export function verifyWebhookSignature(
   signature: string
 ): boolean {
   if (!RAZORPAY_WEBHOOK_SECRET) {
-    logger.warn("RAZORPAY_WEBHOOK_SECRET not set, skipping webhook verification");
+    logger.warn(
+      "RAZORPAY_WEBHOOK_SECRET not set, skipping webhook verification"
+    );
     return true; // In development, allow if secret not set
   }
 
@@ -61,11 +70,11 @@ export async function createSubscription(
   metadata?: Record<string, unknown>
 ) {
   try {
-    const subscription = await razorpay.subscriptions.create({
+    const subscription = await getRazorpay().subscriptions.create({
       plan_id: planId,
       customer_notify: 1,
       total_count: 12, // 12 months
-      notes: metadata || {},
+      notes: (metadata as Record<string, string>) || {},
     });
 
     logger.info("Razorpay subscription created", {
@@ -76,7 +85,10 @@ export async function createSubscription(
 
     return subscription;
   } catch (error) {
-    logger.error("Failed to create Razorpay subscription", error, { planId, customerId });
+    logger.error("Failed to create Razorpay subscription", error, {
+      planId,
+      customerId,
+    });
     throw error;
   }
 }
@@ -90,11 +102,11 @@ export async function createOrder(
   notes?: Record<string, unknown>
 ) {
   try {
-    const order = await razorpay.orders.create({
+    const order = await getRazorpay().orders.create({
       amount,
       currency: "INR",
       receipt,
-      notes: notes || {},
+      notes: (notes as Record<string, string>) || {},
     });
 
     logger.info("Razorpay order created", { orderId: order.id, amount });
@@ -111,13 +123,15 @@ export async function createOrder(
  */
 export async function cancelSubscription(subscriptionId: string) {
   try {
-    const subscription = await razorpay.subscriptions.cancel(subscriptionId);
+    const subscription = await getRazorpay().subscriptions.cancel(subscriptionId);
 
     logger.info("Razorpay subscription cancelled", { subscriptionId });
 
     return subscription;
   } catch (error) {
-    logger.error("Failed to cancel Razorpay subscription", error, { subscriptionId });
+    logger.error("Failed to cancel Razorpay subscription", error, {
+      subscriptionId,
+    });
     throw error;
   }
 }
@@ -127,10 +141,12 @@ export async function cancelSubscription(subscriptionId: string) {
  */
 export async function getSubscription(subscriptionId: string) {
   try {
-    const subscription = await razorpay.subscriptions.fetch(subscriptionId);
+    const subscription = await getRazorpay().subscriptions.fetch(subscriptionId);
     return subscription;
   } catch (error) {
-    logger.error("Failed to fetch Razorpay subscription", error, { subscriptionId });
+    logger.error("Failed to fetch Razorpay subscription", error, {
+      subscriptionId,
+    });
     throw error;
   }
 }
@@ -140,11 +156,10 @@ export async function getSubscription(subscriptionId: string) {
  */
 export async function getPayment(paymentId: string) {
   try {
-    const payment = await razorpay.payments.fetch(paymentId);
+    const payment = await getRazorpay().payments.fetch(paymentId);
     return payment;
   } catch (error) {
     logger.error("Failed to fetch Razorpay payment", error, { paymentId });
     throw error;
   }
 }
-

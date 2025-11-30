@@ -1,4 +1,4 @@
-import { put, del, head } from "@vercel/blob";
+import { del, head, put } from "@vercel/blob";
 import { logger } from "./logger";
 import { validateImageFile } from "./validate";
 
@@ -25,7 +25,7 @@ export async function uploadRoomImage(
 ): Promise<BlobUploadResult> {
   try {
     // Get file size before upload as fallback
-    const fileSize = file instanceof Buffer ? file.length : file.size;
+    const fileSize = file instanceof Buffer ? file.length : (file as File).size;
 
     const blob = await put(filename, file, {
       access: "public",
@@ -38,8 +38,9 @@ export async function uploadRoomImage(
     return {
       url: blob.url,
       key: blob.pathname,
-      size: blob.size ?? fileSize,
-      mimeType: blob.contentType || mimeType,
+      size: (blob as unknown as { size: number }).size ?? fileSize,
+      mimeType:
+        (blob as unknown as { contentType: string }).contentType || mimeType,
     };
   } catch (error) {
     logger.error("Failed to upload room image", error);
@@ -67,8 +68,9 @@ export async function uploadMaskImage(
     return {
       url: blob.url,
       key: blob.pathname,
-      size: blob.size,
-      mimeType: blob.contentType || mimeType,
+      size: (blob as unknown as { size: number }).size,
+      mimeType:
+        (blob as unknown as { contentType: string }).contentType || mimeType,
     };
   } catch (error) {
     logger.error("Failed to upload mask image", error);
@@ -91,13 +93,17 @@ export async function uploadGeneratedImage(
       contentType: mimeType,
     });
 
-    logger.info("Generated image uploaded", { url: blob.url, key: blob.pathname });
+    logger.info("Generated image uploaded", {
+      url: blob.url,
+      key: blob.pathname,
+    });
 
     return {
       url: blob.url,
       key: blob.pathname,
-      size: blob.size,
-      mimeType: blob.contentType || mimeType,
+      size: (blob as unknown as { size: number }).size,
+      mimeType:
+        (blob as unknown as { contentType: string }).contentType || mimeType,
     };
   } catch (error) {
     logger.error("Failed to upload generated image", error);
@@ -153,4 +159,3 @@ export async function validateAndUploadImage(
 
   return uploadRoomImage(file, filename, file.type);
 }
-

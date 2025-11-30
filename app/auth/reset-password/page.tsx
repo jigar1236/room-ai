@@ -1,6 +1,6 @@
 "use client"
 
-import { useActionState, useEffect, useState, startTransition } from "react"
+import { useActionState, useEffect, useState, startTransition, Suspense } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { SubmitButton } from "@/components/ui/submit-button"
-import { Sparkles, Eye, EyeOff, Check } from "lucide-react"
+import { Sparkles, Eye, EyeOff, Check, Loader2 } from "lucide-react"
 import { resetPassword } from "@/lib/services/user.service"
 import { ResetPasswordSchema } from "@/lib/validate"
 import type { z } from "zod"
@@ -23,6 +23,25 @@ const passwordRequirements = [
 ]
 
 export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<ResetPasswordLoading />}>
+      <ResetPasswordContent />
+    </Suspense>
+  )
+}
+
+function ResetPasswordLoading() {
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="w-full max-w-md text-center">
+        <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
+        <p className="mt-2 text-muted-foreground">Loading...</p>
+      </div>
+    </div>
+  )
+}
+
+function ResetPasswordContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const token = searchParams.get("token")
