@@ -45,22 +45,38 @@ export async function signUp(
     const validated = SignUpSchema.parse(data);
 
     // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email: validated.email },
-      include: {
-        emailVerificationTokens: {
-          where: {
-            expires: {
-              gt: new Date(),
+    let existingUser;
+    try {
+      existingUser = await prisma.user.findUnique({
+        where: { email: validated.email },
+        include: {
+          emailVerificationTokens: {
+            where: {
+              expires: {
+                gt: new Date(),
+              },
             },
+            orderBy: {
+              createdAt: "desc",
+            },
+            take: 1,
           },
-          orderBy: {
-            createdAt: "desc",
-          },
-          take: 1,
         },
-      },
-    });
+      });
+    } catch (dbError: any) {
+      logger.error("Database connection error", dbError);
+      // Check if it's a connection error
+      if (dbError?.message?.includes("Can't reach database server") || 
+          dbError?.code === "P1001" || 
+          dbError?.code === "P1017") {
+        return {
+          success: false,
+          error: "Unable to connect to the database. Please try again later.",
+        };
+      }
+      // Re-throw other database errors
+      throw dbError;
+    }
 
     if (existingUser) {
       // If user exists but email is not verified, check if we should resend
@@ -69,42 +85,55 @@ export async function signUp(
         if (hasValidToken) {
           return {
             success: false,
-            error: "A verification email has already been sent. Please check your inbox or wait before requesting another.",
+            message: "A verification email has already been sent. Please check your inbox or wait before requesting another.",
           };
         }
         // User exists but no valid token, create new one
-        const token = generateToken();
-        await prisma.emailVerificationToken.create({
-          data: {
-            token,
-            userId: existingUser.id,
-            expires: new Date(Date.now() + EMAIL_VERIFICATION_EXPIRY),
-          },
-        });
+        try {
+          const token = generateToken();
+          await prisma.emailVerificationToken.create({
+            data: {
+              token,
+              userId: existingUser.id,
+              expires: new Date(Date.now() + EMAIL_VERIFICATION_EXPIRY),
+            },
+          });
 
-        const verificationUrl = getAppUrl(`/auth/verify-email?token=${token}`);
-        const emailHtml = await render(
-          VerificationEmail({
-            verificationUrl,
-            userName: existingUser.name || undefined,
-          })
-        );
+          const verificationUrl = getAppUrl(`/auth/verify-email?token=${token}`);
+          const emailHtml = await render(
+            VerificationEmail({
+              verificationUrl,
+              userName: existingUser.name || undefined,
+            })
+          );
 
-        await sendEmail({
-          to: validated.email,
-          subject: "Verify your RoomAI email address",
-          html: emailHtml,
-        });
+          await sendEmail({
+            to: validated.email,
+            subject: "Verify your RoomAI email address",
+            html: emailHtml,
+          });
 
-        return {
-          success: false,
-          error: "A verification email has already been sent. Please check your inbox.",
-        };
+          return {
+            success: false,
+            message: "A verification email has been sent. Please check your inbox.",
+          };
+        } catch (dbError: any) {
+          logger.error("Database error while creating verification token", dbError);
+          if (dbError?.message?.includes("Can't reach database server") || 
+              dbError?.code === "P1001" || 
+              dbError?.code === "P1017") {
+            return {
+              success: false,
+              error: "Unable to connect to the database. Please try again later.",
+            };
+          }
+          throw dbError;
+        }
       }
 
       return {
         success: false,
-        error: "User with this email already exists",
+        message: "An account with this email already exists. Please sign in instead.",
       };
     }
 
@@ -112,23 +141,60 @@ export async function signUp(
     const hashedPassword = await bcrypt.hash(validated.password, 10);
 
     // Create user
-    const user = await prisma.user.create({
-      data: {
-        name: validated.name,
-        email: validated.email,
-        password: hashedPassword,
-      },
-    });
+    let user;
+    try {
+      user = await prisma.user.create({
+        data: {
+          name: validated.name,
+          email: validated.email,
+          password: hashedPassword,
+        },
+      });
+    } catch (dbError: any) {
+      logger.error("Database error while creating user", dbError);
+      // Check if it's a connection error
+      if (dbError?.message?.includes("Can't reach database server") || 
+          dbError?.code === "P1001" || 
+          dbError?.code === "P1017") {
+        return {
+          success: false,
+          error: "Unable to connect to the database. Please try again later.",
+        };
+      }
+      // Check if it's a unique constraint violation (user was created between check and create)
+      if (dbError?.code === "P2002") {
+        return {
+          success: false,
+          message: "An account with this email already exists. Please sign in instead.",
+        };
+      }
+      // Re-throw other database errors
+      throw dbError;
+    }
 
     // Create verification token
-    const token = generateToken();
-    await prisma.emailVerificationToken.create({
-      data: {
-        token,
-        userId: user.id,
-        expires: new Date(Date.now() + EMAIL_VERIFICATION_EXPIRY),
-      },
-    });
+    let token;
+    try {
+      token = generateToken();
+      await prisma.emailVerificationToken.create({
+        data: {
+          token,
+          userId: user.id,
+          expires: new Date(Date.now() + EMAIL_VERIFICATION_EXPIRY),
+        },
+      });
+    } catch (dbError: any) {
+      logger.error("Database error while creating verification token", dbError);
+      if (dbError?.message?.includes("Can't reach database server") || 
+          dbError?.code === "P1001" || 
+          dbError?.code === "P1017") {
+        return {
+          success: false,
+          error: "Unable to connect to the database. Please try again later.",
+        };
+      }
+      throw dbError;
+    }
 
     // Send verification email
     const verificationUrl = getAppUrl(`/auth/verify-email?token=${token}`);
@@ -363,12 +429,13 @@ export async function resendVerificationEmail(
     }
 
     // Delete any existing valid tokens before creating a new one
+    // This allows users to resend verification emails if they didn't receive the first one
     if (user.emailVerificationTokens.length > 0) {
       await prisma.emailVerificationToken.deleteMany({
         where: {
           userId: user.id,
           expires: {
-            gt: new Date(),
+            gt: new Date(), // Only delete tokens that haven't expired yet
           },
         },
       });

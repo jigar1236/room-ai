@@ -12,7 +12,7 @@ export const RoomTypeSchema = z.enum([
   "OTHER",
 ]);
 
-// Style Type Enum
+// Style Type Enum (updated to include LUXURY_MODERN)
 export const StyleTypeSchema = z.enum([
   "MODERN_MINIMALIST",
   "SCANDINAVIAN",
@@ -26,68 +26,15 @@ export const StyleTypeSchema = z.enum([
   "RUSTIC",
   "ART_DECO",
   "MEDITERRANEAN",
+  "LUXURY_MODERN",
   "CUSTOM",
 ]);
 
-// Generation Mode Schema
-export const GenerationModeSchema = z.enum(["redesign", "replace", "moodboard", "shopping_list"]);
-
-// Project Schemas
-export const CreateProjectSchema = z.object({
-  name: z.string().min(1).max(100),
-  description: z.string().max(500).optional(),
-});
-
-export const UpdateProjectSchema = z.object({
-  name: z.string().min(1).max(100).optional(),
-  description: z.string().max(500).optional(),
-});
-
-// Room Schemas
-export const CreateRoomSchema = z.object({
-  name: z.string().min(1).max(100),
-  roomType: RoomTypeSchema,
-  projectId: z.string().cuid(),
-});
-
-export const UpdateRoomSchema = z.object({
-  name: z.string().min(1).max(100).optional(),
-  roomType: RoomTypeSchema.optional(),
-});
-
-// Generation Schemas
-export const StartGenerationSchema = z.object({
-  roomId: z.string().cuid(),
-  mode: GenerationModeSchema,
-  style: StyleTypeSchema.optional(),
-  roomType: RoomTypeSchema,
-  numVariations: z.number().int().min(1).max(8).default(4),
-  keepFurniture: z.boolean().default(false),
-  instructions: z.string().max(1000).optional(),
-  isHighRes: z.boolean().default(false), // 4K = 5 credits, standard = 1 credit
-});
-
-export const ReplaceFurnitureSchema = z.object({
-  roomId: z.string().cuid(),
-  itemMaskUrl: z.string().url(),
-  style: StyleTypeSchema.optional(),
-  instructions: z.string().max(1000).optional(),
-});
-
-export const GenerateMoodboardSchema = z.object({
-  roomId: z.string().cuid(),
-  roomType: RoomTypeSchema,
+// Design Schemas (simplified from Project/Room)
+export const CreateDesignSchema = z.object({
   style: StyleTypeSchema,
-});
-
-export const GenerateShoppingListSchema = z.object({
-  generationId: z.string().cuid(),
-});
-
-// Upload Schemas
-export const UploadRoomImageSchema = z.object({
-  roomId: z.string().cuid(),
-  type: z.enum(["original", "mask", "item_mask"]),
+  roomType: RoomTypeSchema,
+  instructions: z.string().max(1000).optional(),
 });
 
 // User Profile Schema
@@ -100,7 +47,10 @@ export const UpdateUserProfileSchema = z.object({
 export const SignUpSchema = z.object({
   name: z.string().min(1).max(100),
   email: z.string().email(),
-  password: z.string().min(8).regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+  password: z
+    .string()
+    .min(8)
+    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
     .regex(/[a-z]/, "Password must contain at least one lowercase letter")
     .regex(/\d/, "Password must contain at least one number"),
 });
@@ -119,7 +69,10 @@ export const ForgotPasswordSchema = z.object({
 // Reset Password Schema
 export const ResetPasswordSchema = z.object({
   token: z.string().min(1, "Token is required"),
-  password: z.string().min(8).regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+  password: z
+    .string()
+    .min(8)
+    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
     .regex(/[a-z]/, "Password must contain at least one lowercase letter")
     .regex(/\d/, "Password must contain at least one number"),
 });
@@ -140,12 +93,12 @@ export const CreateOrderSchema = z.object({
 
 // Credit Pack Pricing (example: 100 credits = ₹999)
 const CREDIT_PACKS = {
-  10: 99,    // ₹0.99 per credit
-  50: 399,   // ₹7.98 per credit
-  100: 699,  // ₹6.99 per credit
-  250: 1499, // ₹5.996 per credit
-  500: 2499, // ₹4.998 per credit
-  1000: 3999, // ₹3.999 per credit
+  10: 99,
+  50: 399,
+  100: 699,
+  250: 1499,
+  500: 2499,
+  1000: 3999,
 } as const;
 
 export function getCreditPackPrice(credits: number): number {
@@ -154,28 +107,36 @@ export function getCreditPackPrice(credits: number): number {
 
 // File Upload Validation
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MIN_DIMENSION = 512; // Minimum width/height
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
-export function validateImageFile(file: File): { valid: boolean; error?: string } {
+export function validateImageFile(file: File): {
+  valid: boolean;
+  error?: string;
+} {
   if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
-    return { valid: false, error: "Invalid file type. Only JPEG, PNG, and WebP are allowed." };
+    return {
+      valid: false,
+      error: "Invalid file type. Only JPEG, PNG, and WebP are allowed.",
+    };
   }
   if (file.size > MAX_FILE_SIZE) {
-    return { valid: false, error: `File size exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit.` };
+    return {
+      valid: false,
+      error: `File size exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit.`,
+    };
   }
   return { valid: true };
 }
 
 // Sanitize AI instructions to prevent prompt injection
 export function sanitizeInstructions(instructions: string): string {
-  // Remove potentially dangerous patterns
   let sanitized = instructions
     .replace(/<script[^>]*>.*?<\/script>/gi, "")
     .replace(/javascript:/gi, "")
     .replace(/on\w+\s*=/gi, "")
     .trim();
 
-  // Limit length
   if (sanitized.length > 1000) {
     sanitized = sanitized.substring(0, 1000);
   }
@@ -183,3 +144,22 @@ export function sanitizeInstructions(instructions: string): string {
   return sanitized;
 }
 
+// Validate environment variables
+export function validateEnv(): { valid: boolean; missing: string[] } {
+  const required = ["DATABASE_URL", "NEXTAUTH_SECRET"];
+  const optional = [
+    "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
+    "BLOB_READ_WRITE_TOKEN",
+    "GOOGLE_CLOUD_PROJECT",
+    "GOOGLE_CLOUD_LOCATION",
+  ];
+
+  const missing = required.filter((key) => !process.env[key]);
+
+  if (missing.length > 0) {
+    return { valid: false, missing };
+  }
+
+  return { valid: true, missing: [] };
+}

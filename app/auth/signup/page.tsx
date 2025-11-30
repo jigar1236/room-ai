@@ -47,16 +47,17 @@ export default function SignUpPage() {
   useEffect(() => {
     if (state.success) {
       toast.success(state.message || "Account created successfully!")
-      // Get the email from the form before resetting
-      const email = form.getValues("email")
       form.reset()
       setAcceptTerms(false)
-      // Redirect to check-email page with email parameter
+      // Redirect to signin page after successful signup
       setTimeout(() => {
-        router.push(`/auth/check-email?email=${encodeURIComponent(email)}`)
-      }, 1000)
+        router.push("/auth/signin?signup=success")
+      }, 2000)
     } else if (state.error) {
       toast.error(state.error)
+    } else if (state.message) {
+      // Show message as info toast instead of error
+      toast.info(state.message)
     }
   }, [state, form, router])
 

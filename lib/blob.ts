@@ -24,6 +24,9 @@ export async function uploadRoomImage(
   mimeType: string = "image/jpeg"
 ): Promise<BlobUploadResult> {
   try {
+    // Get file size before upload as fallback
+    const fileSize = file instanceof Buffer ? file.length : file.size;
+
     const blob = await put(filename, file, {
       access: "public",
       token: BLOB_READ_WRITE_TOKEN,
@@ -35,7 +38,7 @@ export async function uploadRoomImage(
     return {
       url: blob.url,
       key: blob.pathname,
-      size: blob.size,
+      size: blob.size ?? fileSize,
       mimeType: blob.contentType || mimeType,
     };
   } catch (error) {

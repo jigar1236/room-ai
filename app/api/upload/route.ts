@@ -10,12 +10,11 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
 
     const file = formData.get("file") as File;
-    const roomId = formData.get("roomId") as string;
-    const type = formData.get("type") as "original" | "mask" | "item_mask";
+    const projectId = formData.get("projectId") as string;
 
-    if (!file || !roomId || !type) {
+    if (!file || !projectId) {
       return NextResponse.json(
-        { error: "Missing required fields: file, roomId, type" },
+        { error: "Missing required fields: file, projectId" },
         { status: 400 }
       );
     }
@@ -26,29 +25,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: validation.error }, { status: 400 });
     }
 
-    // Convert file to base64 or upload directly
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const base64 = buffer.toString("base64");
-    const dataUrl = `data:${file.type};base64,${base64}`;
+    // Upload via server action - new signature: (projectId, file)
+    const result = await uploadRoomImage(projectId, file);
 
-    // Upload via server action
-    const result = await uploadRoomImage(roomId, dataUrl, type);
-
-    if (!result.success) {
-      return NextResponse.json({ error: result.error }, { status: 400 });
-    }
-
-    logger.info("File uploaded via API", { roomId, type, userId });
+    logger.info("File uploaded via API", { roomId: result.roomId, projectId, userId });
 
     return NextResponse.json({
       success: true,
-      asset: result.asset,
+      roomId: result.roomId,
+      imageUrl: result.imageUrl,
     });
   } catch (error) {
     logger.error("Upload API error", error);
     return NextResponse.json(
-      { error: "Failed to upload file" },
+      { error: error instanceof Error ? error.message : "Failed to upload file" },
       { status: 500 }
     );
   }

@@ -62,3 +62,11 @@ export async function generateMockSegmentationMask(imageUrl: string): Promise<st
   return `${imageUrl}_mask.png`;
 }
 
+/**
+ * Generate mask wrapper - returns object with url property
+ */
+export async function generateMask(imageUrl: string): Promise<{ url: string }> {
+  const url = await generateMockSegmentationMask(imageUrl);
+  return { url };
+}
+

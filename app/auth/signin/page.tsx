@@ -1,7 +1,7 @@
 "use client"
 
-import { useActionState, useEffect, startTransition, useState } from "react"
-import { useForm } from "react-hook-form"
+import { useActionState, useEffect, useState, startTransition } from "react"
+import { useForm, FieldPath } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -14,36 +14,21 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Checkbox } from "@/components/ui/checkbox"
 import { Separator } from "@/components/ui/separator"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { SubmitButton } from "@/components/ui/submit-button"
-import { Sparkles, Eye, EyeOff, Mail, Loader2, AlertCircle } from "lucide-react"
-import { signIn as signInAction, resendVerificationEmail } from "@/lib/services/user.service"
+import { Sparkles, Eye, EyeOff } from "lucide-react"
+import { actionHandleLogin, State } from "./action"
 import { SignInSchema } from "@/lib/validate"
+import { ERROR, SUCCESS } from "@/lib/constants"
 import type { z } from "zod"
-
-const ResendEmailSchema = z.object({
-  email: z.string().email("Invalid email address"),
-})
 
 export default function SignInPage() {
   const router = useRouter()
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
-  const [showResendEmail, setShowResendEmail] = useState(false)
-  const [userEmail, setUserEmail] = useState<string>("")
 
-  const [state, formAction, pending] = useActionState(signInAction, { success: false, error: undefined })
-  const [resendState, resendFormAction, resendPending] = useActionState(resendVerificationEmail, {
-    success: false,
-    error: undefined,
-    message: undefined,
-  })
-
-  const resendForm = useForm<z.infer<typeof ResendEmailSchema>>({
-    resolver: zodResolver(ResendEmailSchema),
-    defaultValues: {
-      email: "",
-    },
-  })
+  const [state, formAction] = useActionState<State, FormData>(
+    actionHandleLogin,
+    { status: "", message: "" },
+  )
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -58,56 +43,37 @@ export default function SignInPage() {
       email: "",
       password: "",
     },
+    mode: "all",
   })
 
+  const {
+    control,
+    formState: { isValid },
+    setError,
+  } = form
+
   useEffect(() => {
-    if (state.success) {
-      // Use NextAuth signIn with credentials
-      const handleSignIn = async () => {
-        const formData = form.getValues()
-        const result = await signIn("credentials", {
-          email: formData.email,
-          password: formData.password,
-          redirect: false,
+    if (!state) {
+      return
+    }
+
+    if (state.status === SUCCESS) {
+      toast.success(state?.message || "Signed in successfully!")
+      router.push("/dashboard")
+      router.refresh()
+    }
+
+    if (state.status === ERROR) {
+      toast.error(state?.message || "Failed to sign in")
+      if (state.errors) {
+        state.errors.forEach((error) => {
+          setError(error.path as FieldPath<z.infer<typeof SignInSchema>>, {
+            message: error.message,
+          })
         })
-
-        if (result?.error) {
-          toast.error("Invalid email or password")
-        } else {
-          toast.success("Signed in successfully!")
-          router.push("/dashboard")
-          router.refresh()
-        }
-      }
-      handleSignIn()
-    } else if (state.error) {
-      toast.error(state.error)
-      // Check if error is about email not verified
-      if (state.error.includes("verify your email") || state.error.includes("verification")) {
-        const email = form.getValues("email")
-        setUserEmail(email)
-        setShowResendEmail(true)
-        resendForm.setValue("email", email)
       }
     }
-  }, [state, form, router, resendForm])
-
-  useEffect(() => {
-    if (resendState.success) {
-      toast.success(resendState.message || "Verification email sent!")
-      setShowResendEmail(false)
-    } else if (resendState.error) {
-      toast.error(resendState.error)
-    }
-  }, [resendState])
-
-  const handleResendEmail = async (data: z.infer<typeof ResendEmailSchema>) => {
-    const formData = new FormData()
-    formData.append("email", data.email)
-    startTransition(() => {
-      resendFormAction(formData)
-    })
-  }
+  }, [state, router, setError])
 
   const handleGoogleSignIn = async () => {
     try {
@@ -175,117 +141,85 @@ export default function SignInPage() {
             </div>
 
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input type="email" placeholder="you@example.com" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="password"
-                  render={({ field }) => (
-                    <FormItem>
-                      <div className="flex items-center justify-between">
-                        <FormLabel>Password</FormLabel>
-                        <Link href="/auth/forgot-password" className="text-xs text-primary hover:underline">
-                          Forgot password?
-                        </Link>
-                      </div>
-                      <FormControl>
-                        <div className="relative">
+              <form onSubmit={form.handleSubmit(onSubmit)}>
+                <div className="space-y-4">
+                  <FormField
+                    control={control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-foreground font-semibold">
+                          Email
+                        </FormLabel>
+                        <FormControl>
                           <Input
-                            type={showPassword ? "text" : "password"}
-                            placeholder="Enter your password"
+                            placeholder="you@example.com"
                             {...field}
+                            className="border-border focus:border-border/60 bg-card focus:bg-card mt-1"
+                            type="email"
                           />
-                          <button
-                            type="button"
-                            onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                          >
-                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                          </button>
-                        </div>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="remember"
-                    checked={rememberMe}
-                    onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                        </FormControl>
+                        <FormMessage className="text-destructive mt-2 min-h-[20px] font-bold" />
+                      </FormItem>
+                    )}
                   />
-                  <Label htmlFor="remember" className="text-sm font-normal">
-                    Remember me for 30 days
-                  </Label>
+                  <FormField
+                    control={control}
+                    name="password"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex items-center justify-between">
+                          <FormLabel className="text-foreground font-semibold">
+                            Password
+                          </FormLabel>
+                          <Link href="/auth/forgot-password" className="text-xs text-primary hover:underline">
+                            Forgot password?
+                          </Link>
+                        </div>
+                        <FormControl>
+                          <div className="relative mt-1">
+                            <Input
+                              id="password"
+                              placeholder="Enter your password"
+                              type={showPassword ? "text" : "password"}
+                              {...field}
+                              className="border-border focus:border-border/60 bg-card focus:bg-card"
+                            />
+                            <span
+                              onClick={() => setShowPassword(!showPassword)}
+                              onKeyDown={() => setShowPassword(!showPassword)}
+                              role="button"
+                              tabIndex={0}
+                              className="text-muted-foreground absolute top-1/2 right-3 -translate-y-1/2 transform cursor-pointer"
+                            >
+                              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </span>
+                          </div>
+                        </FormControl>
+                        <FormMessage className="text-destructive mt-2 min-h-[20px] font-bold" />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="remember"
+                      checked={rememberMe}
+                      onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                    />
+                    <Label htmlFor="remember" className="text-sm font-normal">
+                      Remember me for 30 days
+                    </Label>
+                  </div>
+                  <Button
+                    type="submit"
+                    disabled={!isValid}
+                    className="w-full"
+                  >
+                    Sign In
+                  </Button>
                 </div>
-                <SubmitButton isValid={form.formState.isValid} pending={pending} className="w-full">
-                  Sign In
-                </SubmitButton>
               </form>
             </Form>
-
-            {showResendEmail && (
-              <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-950 rounded-lg border border-yellow-200 dark:border-yellow-800">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5" />
-                  <div className="flex-1 space-y-3">
-                    <div>
-                      <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
-                        Email verification required
-                      </p>
-                      <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
-                        Please verify your email before signing in. Check your inbox for the verification link.
-                      </p>
-                    </div>
-                    {!resendState.success ? (
-                      <Form {...resendForm}>
-                        <form onSubmit={resendForm.handleSubmit(handleResendEmail)} className="space-y-2">
-                          <FormField
-                            control={resendForm.control}
-                            name="email"
-                            render={({ field }) => (
-                              <FormItem>
-                                <FormControl>
-                                  <Input type="email" placeholder="your@email.com" {...field} />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            )}
-                          />
-                          <Button
-                            type="submit"
-                            disabled={resendPending}
-                            variant="outline"
-                            size="sm"
-                            className="w-full"
-                          >
-                            {resendPending && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
-                            <Mail className="mr-2 h-3 w-3" />
-                            Resend Verification Email
-                          </Button>
-                        </form>
-                      </Form>
-                    ) : (
-                      <p className="text-sm text-green-700 dark:text-green-300">
-                        Verification email sent! Please check your inbox.
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
           </CardContent>
           <CardFooter className="justify-center">
             <p className="text-sm text-muted-foreground">

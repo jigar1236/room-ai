@@ -1,97 +1,185 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { DashboardLayout } from "@/components/dashboard-layout"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Switch } from "@/components/ui/switch"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { mockUser, pricingPlans } from "@/lib/mock-data"
-import { User, CreditCard, Bell, Shield, Zap, Check, Upload, Trash2 } from "lucide-react"
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
+import { DashboardLayout } from "@/components/dashboard-layout";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { pricingPlans } from "@/lib/mock-data";
+import {
+  User,
+  CreditCard,
+  Bell,
+  Shield,
+  Zap,
+  Check,
+  Upload,
+  Trash2,
+  Loader2,
+} from "lucide-react";
+import { toast } from "sonner";
 
 export default function SettingsPage() {
+  const { data: session, update } = useSession();
   const [profile, setProfile] = useState({
-    name: mockUser.name,
-    email: mockUser.email,
-  })
+    name: "",
+    email: "",
+  });
+  const [credits, setCredits] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
   const [notifications, setNotifications] = useState({
     emailUpdates: true,
     projectComplete: true,
     marketing: false,
     weeklyDigest: true,
-  })
+  });
 
-  const handleSaveProfile = () => {
-    console.log("[v0] Saving profile:", profile)
-  }
+  useEffect(() => {
+    if (session?.user) {
+      setProfile({
+        name: session.user.name || "",
+        email: session.user.email || "",
+      });
+    }
+    loadCredits();
+  }, [session]);
+
+  const loadCredits = async () => {
+    try {
+      const response = await fetch("/api/user/credits");
+      if (response.ok) {
+        const data = await response.json();
+        setCredits(data.credits);
+      }
+    } catch (error) {
+      // Silent fail
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    setIsSaving(true);
+    try {
+      const response = await fetch("/api/user/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: profile.name }),
+      });
+
+      if (response.ok) {
+        await update({ name: profile.name });
+        toast.success("Profile updated successfully");
+      } else {
+        throw new Error("Failed to update profile");
+      }
+    } catch (error) {
+      toast.error("Failed to update profile");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleUploadAvatar = () => {
-    console.log("[v0] Upload avatar clicked")
-  }
+    toast.info("Avatar upload coming soon");
+  };
 
-  const handleDeleteAccount = () => {
-    console.log("[v0] Delete account clicked")
-  }
+  const handleDeleteAccount = async () => {
+    if (
+      !confirm(
+        "Are you sure you want to delete your account? This action cannot be undone."
+      )
+    ) {
+      return;
+    }
+    toast.info("Account deletion coming soon");
+  };
 
   const handleUpgradePlan = (plan: string) => {
-    console.log("[v0] Upgrade to plan:", plan)
-  }
+    toast.info(`Upgrade to ${plan} coming soon`);
+  };
 
   const handleManageBilling = () => {
-    console.log("[v0] Manage billing clicked")
-  }
+    toast.info("Billing management coming soon");
+  };
 
-  const currentPlan = pricingPlans.find((p) => p.name.toLowerCase() === mockUser.plan)
+  const userName = session?.user?.name || "User";
+  const userEmail = session?.user?.email || "";
+  const userImage = session?.user?.image;
+  const userInitials = userName
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+
+  const currentPlan =
+    pricingPlans.find((p) => p.name.toLowerCase() === "free") || pricingPlans[0];
+  const totalCredits = 100;
+  const usedCredits = credits !== null ? totalCredits - credits : 0;
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">Settings</h1>
-          <p className="text-muted-foreground mt-1">Manage your account settings and preferences</p>
+      <div className="max-w-4xl mx-auto space-y-8">
+        <div className="animate-fade-in">
+          <h1 className="text-3xl md:text-4xl font-display font-bold">
+            Settings
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Manage your account settings and preferences
+          </p>
         </div>
 
-        <Tabs defaultValue="profile" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="profile">
-              <User className="w-4 h-4 mr-2" />
+        <Tabs defaultValue="profile" className="space-y-6 animate-fade-in">
+          <TabsList className="bg-card border border-border">
+            <TabsTrigger value="profile" className="gap-2">
+              <User className="w-4 h-4" />
               Profile
             </TabsTrigger>
-            <TabsTrigger value="billing">
-              <CreditCard className="w-4 h-4 mr-2" />
+            <TabsTrigger value="billing" className="gap-2">
+              <CreditCard className="w-4 h-4" />
               Billing
             </TabsTrigger>
-            <TabsTrigger value="notifications">
-              <Bell className="w-4 h-4 mr-2" />
+            <TabsTrigger value="notifications" className="gap-2">
+              <Bell className="w-4 h-4" />
               Notifications
             </TabsTrigger>
-            <TabsTrigger value="security">
-              <Shield className="w-4 h-4 mr-2" />
+            <TabsTrigger value="security" className="gap-2">
+              <Shield className="w-4 h-4" />
               Security
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="profile" className="space-y-6">
-            <Card>
+            <Card className="glass">
               <CardHeader>
                 <CardTitle>Profile Information</CardTitle>
-                <CardDescription>Update your personal information</CardDescription>
+                <CardDescription>
+                  Update your personal information
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="flex items-center gap-6">
                   <Avatar className="w-20 h-20">
-                    <AvatarImage src={mockUser.avatar || "/placeholder.svg"} alt={mockUser.name} />
-                    <AvatarFallback className="text-2xl">
-                      {mockUser.name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")}
+                    <AvatarImage src={userImage || undefined} alt={userName} />
+                    <AvatarFallback className="text-2xl bg-gradient-to-br from-primary/20 to-accent/20">
+                      {userInitials}
                     </AvatarFallback>
                   </Avatar>
                   <div>
@@ -99,7 +187,9 @@ export default function SettingsPage() {
                       <Upload className="w-4 h-4 mr-2" />
                       Change Avatar
                     </Button>
-                    <p className="text-xs text-muted-foreground mt-2">JPG, PNG or GIF. Max 2MB.</p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      JPG, PNG or GIF. Max 2MB.
+                    </p>
                   </div>
                 </div>
                 <Separator />
@@ -109,7 +199,10 @@ export default function SettingsPage() {
                     <Input
                       id="name"
                       value={profile.name}
-                      onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+                      onChange={(e) =>
+                        setProfile({ ...profile, name: e.target.value })
+                      }
+                      className="bg-card"
                     />
                   </div>
                   <div className="space-y-2">
@@ -118,25 +211,36 @@ export default function SettingsPage() {
                       id="email"
                       type="email"
                       value={profile.email}
-                      onChange={(e) => setProfile({ ...profile, email: e.target.value })}
+                      disabled
+                      className="bg-card opacity-50"
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Email cannot be changed
+                    </p>
                   </div>
                 </div>
               </CardContent>
               <CardFooter>
-                <Button onClick={handleSaveProfile}>Save Changes</Button>
+                <Button onClick={handleSaveProfile} disabled={isSaving}>
+                  {isSaving && (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  )}
+                  Save Changes
+                </Button>
               </CardFooter>
             </Card>
 
             <Card className="border-destructive/50">
               <CardHeader>
                 <CardTitle className="text-destructive">Danger Zone</CardTitle>
-                <CardDescription>Permanently delete your account and all data</CardDescription>
+                <CardDescription>
+                  Permanently delete your account and all data
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  Once you delete your account, there is no going back. All your projects, rooms, and generated designs
-                  will be permanently deleted.
+                  Once you delete your account, there is no going back. All your
+                  designs and generated images will be permanently deleted.
                 </p>
               </CardContent>
               <CardFooter>
@@ -149,12 +253,14 @@ export default function SettingsPage() {
           </TabsContent>
 
           <TabsContent value="billing" className="space-y-6">
-            <Card>
+            <Card className="glass">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle>Current Plan</CardTitle>
-                    <CardDescription>You are currently on the {currentPlan?.name} plan</CardDescription>
+                    <CardDescription>
+                      You are currently on the {currentPlan?.name} plan
+                    </CardDescription>
                   </div>
                   <Badge variant="secondary" className="text-base px-4 py-1">
                     {currentPlan?.name}
@@ -163,25 +269,32 @@ export default function SettingsPage() {
               </CardHeader>
               <CardContent>
                 <div className="flex items-baseline gap-1 mb-4">
-                  <span className="text-4xl font-bold">{currentPlan?.price}</span>
-                  <span className="text-muted-foreground">/{currentPlan?.period}</span>
+                  <span className="text-4xl font-display font-bold">
+                    {currentPlan?.price}
+                  </span>
+                  <span className="text-muted-foreground">
+                    /{currentPlan?.period}
+                  </span>
                 </div>
-                <div className="bg-muted rounded-lg p-4 mb-4">
+                <div className="bg-muted/50 rounded-xl p-4 mb-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium">Credits Used</span>
                     <span className="text-sm font-bold">
-                      {mockUser.totalCredits - mockUser.credits}/{mockUser.totalCredits}
+                      {isLoading ? "..." : usedCredits}/{totalCredits}
                     </span>
                   </div>
                   <div className="w-full h-2 bg-background rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-primary rounded-full"
+                      className="h-full bg-gradient-to-r from-primary to-emerald-500 rounded-full transition-all duration-500"
                       style={{
-                        width: `${((mockUser.totalCredits - mockUser.credits) / mockUser.totalCredits) * 100}%`,
+                        width: `${(usedCredits / totalCredits) * 100}%`,
                       }}
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground mt-2">{mockUser.credits} credits remaining this month</p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {credits !== null ? credits : "..."} credits remaining this
+                    month
+                  </p>
                 </div>
                 <ul className="space-y-2">
                   {currentPlan?.features.slice(0, 4).map((feature) => (
@@ -196,73 +309,37 @@ export default function SettingsPage() {
                 <Button variant="outline" onClick={handleManageBilling}>
                   Manage Billing
                 </Button>
-                <Button onClick={() => handleUpgradePlan("enterprise")}>
+                <Button
+                  onClick={() => handleUpgradePlan("pro")}
+                  className="btn-shine"
+                >
                   <Zap className="w-4 h-4 mr-2" />
                   Upgrade Plan
                 </Button>
               </CardFooter>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Payment Method</CardTitle>
-                <CardDescription>Manage your payment methods</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-4 p-4 border border-border rounded-lg">
-                  <div className="w-12 h-8 bg-gradient-to-r from-blue-600 to-blue-800 rounded flex items-center justify-center text-white text-xs font-bold">
-                    VISA
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium">•••• •••• •••• 4242</p>
-                    <p className="text-sm text-muted-foreground">Expires 12/2025</p>
-                  </div>
-                  <Badge>Default</Badge>
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Button variant="outline">Add Payment Method</Button>
-              </CardFooter>
-            </Card>
-
-            <Card>
+            <Card className="glass">
               <CardHeader>
                 <CardTitle>Billing History</CardTitle>
                 <CardDescription>View your past invoices</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
-                  {[
-                    { date: "Jan 1, 2024", amount: "$29.00", status: "Paid" },
-                    { date: "Dec 1, 2023", amount: "$29.00", status: "Paid" },
-                    { date: "Nov 1, 2023", amount: "$29.00", status: "Paid" },
-                  ].map((invoice, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between py-2 border-b border-border last:border-0"
-                    >
-                      <div>
-                        <p className="font-medium">{invoice.date}</p>
-                        <p className="text-sm text-muted-foreground">Pro Plan - Monthly</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-medium">{invoice.amount}</p>
-                        <Badge variant="secondary" className="text-xs">
-                          {invoice.status}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
+                <div className="text-center py-8 text-muted-foreground">
+                  <CreditCard className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No billing history yet</p>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="notifications" className="space-y-6">
-            <Card>
+            <Card className="glass">
               <CardHeader>
                 <CardTitle>Email Notifications</CardTitle>
-                <CardDescription>Choose what emails you want to receive</CardDescription>
+                <CardDescription>
+                  Choose what emails you want to receive
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
                 {[
@@ -273,7 +350,7 @@ export default function SettingsPage() {
                   },
                   {
                     id: "projectComplete",
-                    label: "Project Notifications",
+                    label: "Design Notifications",
                     description: "Get notified when generations complete",
                   },
                   {
@@ -290,16 +367,22 @@ export default function SettingsPage() {
                   <div key={item.id} className="flex items-center justify-between">
                     <div>
                       <p className="font-medium">{item.label}</p>
-                      <p className="text-sm text-muted-foreground">{item.description}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {item.description}
+                      </p>
                     </div>
                     <Switch
-                      checked={notifications[item.id as keyof typeof notifications]}
+                      checked={
+                        notifications[item.id as keyof typeof notifications]
+                      }
                       onCheckedChange={(checked) => {
-                        console.log(`[v0] ${item.id} toggled:`, checked)
                         setNotifications({
                           ...notifications,
                           [item.id]: checked,
-                        })
+                        });
+                        toast.success(
+                          `${item.label} ${checked ? "enabled" : "disabled"}`
+                        );
                       }}
                     />
                   </div>
@@ -309,101 +392,64 @@ export default function SettingsPage() {
           </TabsContent>
 
           <TabsContent value="security" className="space-y-6">
-            <Card>
+            <Card className="glass">
               <CardHeader>
                 <CardTitle>Change Password</CardTitle>
-                <CardDescription>Update your password to keep your account secure</CardDescription>
+                <CardDescription>
+                  Update your password to keep your account secure
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="current">Current Password</Label>
-                  <Input id="current" type="password" />
+                  <Input id="current" type="password" className="bg-card" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="new">New Password</Label>
-                  <Input id="new" type="password" />
+                  <Input id="new" type="password" className="bg-card" />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="confirm">Confirm New Password</Label>
-                  <Input id="confirm" type="password" />
+                  <Input id="confirm" type="password" className="bg-card" />
                 </div>
               </CardContent>
               <CardFooter>
-                <Button onClick={() => console.log("[v0] Update password clicked")}>Update Password</Button>
+                <Button onClick={() => toast.info("Password update coming soon")}>
+                  Update Password
+                </Button>
               </CardFooter>
             </Card>
 
-            <Card>
+            <Card className="glass">
               <CardHeader>
                 <CardTitle>Two-Factor Authentication</CardTitle>
-                <CardDescription>Add an extra layer of security to your account</CardDescription>
+                <CardDescription>
+                  Add an extra layer of security to your account
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium">Status</p>
-                    <p className="text-sm text-muted-foreground">Two-factor authentication is currently disabled</p>
+                    <p className="text-sm text-muted-foreground">
+                      Two-factor authentication is currently disabled
+                    </p>
                   </div>
                   <Badge variant="secondary">Disabled</Badge>
                 </div>
               </CardContent>
               <CardFooter>
-                <Button variant="outline" onClick={() => console.log("[v0] Enable 2FA clicked")}>
+                <Button
+                  variant="outline"
+                  onClick={() => toast.info("2FA setup coming soon")}
+                >
                   Enable 2FA
                 </Button>
               </CardFooter>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Active Sessions</CardTitle>
-                <CardDescription>Manage your active sessions across devices</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {[
-                  {
-                    device: "MacBook Pro",
-                    location: "San Francisco, CA",
-                    current: true,
-                  },
-                  {
-                    device: "iPhone 15",
-                    location: "San Francisco, CA",
-                    current: false,
-                  },
-                ].map((session, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between py-2 border-b border-border last:border-0"
-                  >
-                    <div>
-                      <p className="font-medium flex items-center gap-2">
-                        {session.device}
-                        {session.current && (
-                          <Badge variant="secondary" className="text-xs">
-                            Current
-                          </Badge>
-                        )}
-                      </p>
-                      <p className="text-sm text-muted-foreground">{session.location}</p>
-                    </div>
-                    {!session.current && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive"
-                        onClick={() => console.log("[v0] Revoke session:", session.device)}
-                      >
-                        Revoke
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
       </div>
     </DashboardLayout>
-  )
+  );
 }
