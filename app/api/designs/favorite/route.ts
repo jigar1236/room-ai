@@ -13,6 +13,7 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
+    
 
     const { imageId } = await request.json();
 
