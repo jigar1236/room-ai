@@ -104,3 +104,6 @@ export async function actionHandleLogin(
   }
 }
 
+export async function actionHandleGoogleSignIn() {
+  await signIn("google", { callbackUrl: "/dashboard" });
+}

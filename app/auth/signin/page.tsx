@@ -5,7 +5,7 @@ import { useForm, FieldPath } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { signIn } from "next-auth/react"
+import { signIn } from "@/lib/auth-config"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,7 +15,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Separator } from "@/components/ui/separator"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Sparkles, Eye, EyeOff } from "lucide-react"
-import { actionHandleLogin, State } from "./action"
+import { actionHandleGoogleSignIn, actionHandleLogin, State } from "./action"
 import { SignInSchema } from "@/lib/validate"
 import { ERROR, SUCCESS } from "@/lib/constants"
 import type { z } from "zod"
@@ -111,7 +111,7 @@ export default function SignInPage() {
             <CardDescription>Sign in to your account to continue</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button variant="outline" onClick={handleGoogleSignIn} className="w-full">
+            <Button variant="outline" onClick={() => actionHandleGoogleSignIn()} className="w-full">
               <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24">
                 <path
                   fill="currentColor"
