@@ -14,6 +14,11 @@ export async function GET() {
       message: "No image generation API is configured. Add one of these to your .env file:",
       options: [
         {
+          name: "OpenRouter (Multiple models - DALL-E 3, Stable Diffusion, etc.)",
+          key: "OPENROUTER_API_KEY",
+          getKey: "https://openrouter.ai/keys",
+        },
+        {
           name: "Fal.ai (Recommended - FREE)",
           key: "FAL_KEY",
           getKey: "https://fal.ai/dashboard/keys",

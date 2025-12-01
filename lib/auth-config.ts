@@ -1,15 +1,16 @@
-import { Account, User } from "@prisma/client";
-import { compareSync } from "bcryptjs";
-import { NextAuthConfig } from "next-auth";
-import Credentials from "next-auth/providers/credentials";
-import Google from "next-auth/providers/google";
-import NextAuth from "next-auth";
 import { GOOGLE_PROVIDER } from "@/lib/constants";
-import { prisma } from "@/lib/prisma";
 import { awardMonthlyCredits } from "@/lib/credits";
 import { logger } from "@/lib/logger";
+import { prisma } from "@/lib/prisma";
+import { PrismaAdapter } from "@auth/prisma-adapter";
+import { CreditTransactionType, User } from "@prisma/client";
+import { compareSync } from "bcryptjs";
+import NextAuth, { NextAuthConfig } from "next-auth";
+import Credentials from "next-auth/providers/credentials";
+import Google from "next-auth/providers/google";
 
 const authConfig = {
+  adapter: PrismaAdapter(prisma),
   providers: [
     Credentials({
       name: "credentials",
@@ -34,7 +35,7 @@ const authConfig = {
 
         const isPasswordValid = compareSync(
           credentials.password as string,
-          user?.password,
+          user?.password
         );
 
         if (!isPasswordValid) {
@@ -47,6 +48,7 @@ const authConfig = {
     Google({
       clientId: process.env.NEXTAUTH_GOOGLE_CLIENT_ID || "",
       clientSecret: process.env.NEXTAUTH_GOOGLE_CLIENT_SECRET || "",
+      allowDangerousEmailAccountLinking: true,
     }),
   ],
   pages: {
@@ -55,85 +57,103 @@ const authConfig = {
   callbacks: {
     async signIn({ account, user }) {
       try {
-        if (account?.provider === GOOGLE_PROVIDER) {
-          const existingUser = await prisma.user.findUnique({
-            where: { email: user?.email as string },
-          });
+        // PrismaAdapter will automatically create the user and account
+        // This callback just handles additional logic
+        if (account?.provider === GOOGLE_PROVIDER && user?.email) {
+          // Use user.id if available (from adapter), otherwise fetch by email
+          let dbUser = user.id
+            ? await prisma.user.findUnique({ where: { id: user.id } })
+            : await prisma.user.findUnique({ where: { email: user.email } });
 
-          if (existingUser) {
-            // Handle account linking
-            const existingAccount = await prisma.account.findFirst({
-              where: {
-                userId: existingUser.id,
-                provider: account.provider,
-                providerAccountId: account.providerAccountId,
-              },
+          // Retry once if user not found (adapter might still be committing)
+          if (!dbUser) {
+            await new Promise((resolve) => setTimeout(resolve, 100)); // Wait 100ms
+            dbUser = await prisma.user.findUnique({
+              where: { email: user.email },
             });
+          }
 
-            if (!existingAccount && account) {
-              await prisma.account.create({
-                data: {
-                  userId: existingUser.id,
-                  type: account.type,
-                  provider: account.provider,
-                  providerAccountId: account.providerAccountId,
-                  refresh_token: account.refresh_token || null,
-                  access_token: account.access_token || null,
-                  expires_at: typeof account.expires_at === 'number' ? account.expires_at : null,
-                  token_type: account.token_type || null,
-                  scope: account.scope || null,
-                  id_token: account.id_token || null,
-                  session_state: typeof account.session_state === 'string' ? account.session_state : null,
-                },
-              });
-            }
-
+          if (dbUser) {
             // Update user info if missing
             const updateData: Record<string, string> = {};
-            if (!existingUser?.name && user?.name) {
-              updateData.name = user?.name;
+            if (!dbUser.name && user.name) {
+              updateData.name = user.name;
             }
-            if (!existingUser?.image && user?.image) {
-              updateData.image = user?.image;
+            if (!dbUser.image && user.image) {
+              updateData.image = user.image;
             }
-            if (Object.keys(updateData)?.length > 0) {
+            if (Object.keys(updateData).length > 0) {
               await prisma.user.update({
-                where: { email: user?.email as string },
+                where: { email: user.email },
                 data: updateData,
               });
             }
-          }
-        }
 
-        // Award monthly credits on sign in for all providers
-        if (user?.id) {
-          try {
-            await awardMonthlyCredits(user.id);
-          } catch (creditError) {
-            // Log but don't block sign-in if credit awarding fails
-            logger.error("Failed to award monthly credits on sign-in", creditError, { userId: user.id });
+            // Check if this is a new user (no credit transactions exist)
+            const existingTransaction =
+              await prisma.creditTransaction.findFirst({
+                where: { userId: dbUser.id },
+              });
+
+            if (!existingTransaction) {
+              try {
+                const creditTransaction = await prisma.creditTransaction.create(
+                  {
+                    data: {
+                      userId: dbUser.id,
+                      type: CreditTransactionType.EARNED,
+                      amount: 0,
+                      description: "Initial account setup",
+                    },
+                  }
+                );
+                logger.info("Initial credit transaction created for new user", {
+                  userId: dbUser.id,
+                  email: dbUser.email,
+                  transactionId: creditTransaction.id,
+                });
+              } catch (creditError) {
+                logger.error(
+                  "Failed to create initial credit transaction",
+                  creditError,
+                  {
+                    userId: dbUser.id,
+                    email: dbUser.email,
+                    error:
+                      creditError instanceof Error
+                        ? creditError.message
+                        : String(creditError),
+                    stack:
+                      creditError instanceof Error
+                        ? creditError.stack
+                        : undefined,
+                  }
+                );
+                // Don't block sign-in if this fails
+              }
+            } else {
+              logger.info(
+                "User already has credit transactions, skipping initial transaction",
+                {
+                  userId: dbUser.id,
+                  email: dbUser.email,
+                }
+              );
+            }
+          } else {
+            logger.warn("User not found in database during signIn callback", {
+              email: user.email,
+              userId: user.id,
+            });
           }
         }
 
         return true;
       } catch (error) {
         logger.error("Error in signIn callback", error);
-        // Allow sign-in even if secondary operations fail (e.g., credit awarding)
-        // Only block sign-in for critical authentication errors
+        // Allow sign-in even if secondary operations fail
         return true;
       }
-    },
-    async session({ session, token }) {
-      if (token) {
-        session.user = { ...session?.user, ...token } as User;
-        if (token?.image) {
-          session.user.image = token?.image as string;
-        }
-        if (token?.id) {
-          (session.user as any).id = token.id;
-        }
-      }
-      return session;
     },
     async jwt({ token, account, trigger, session, user }) {
       // On initial sign-in, get user data
@@ -141,6 +161,9 @@ const authConfig = {
         token.email = user.email;
         if (user.image) {
           token.image = user.image;
+        }
+        if (user.id) {
+          token.id = user.id;
         }
       }
 
@@ -152,7 +175,7 @@ const authConfig = {
       // This ensures we use the database ID, not OAuth provider ID
       const dbUser = await prisma.user.findUnique({
         where: { email: token.email as string },
-        select: { id: true, name: true, image: true },
+        select: { id: true, name: true, image: true, emailVerified: true },
       });
 
       if (dbUser) {
@@ -163,18 +186,27 @@ const authConfig = {
         if (dbUser.image && !token.image) {
           token.image = dbUser.image;
         }
-      }
 
-      if (account?.provider === GOOGLE_PROVIDER && dbUser) {
-        const existingUser = await prisma.user.findUnique({
-          where: { email: token?.email as string },
-        });
-
-        if (existingUser && !existingUser?.emailVerified) {
+        // Mark email as verified for Google OAuth users
+        if (account?.provider === GOOGLE_PROVIDER && !dbUser.emailVerified) {
           await prisma.user.update({
-            where: { email: token?.email as string },
+            where: { email: token.email as string },
             data: { emailVerified: new Date() },
           });
+        }
+
+        // Award monthly credits on first sign-in (when user object is present)
+        if (user && account?.provider === GOOGLE_PROVIDER) {
+          try {
+            await awardMonthlyCredits(dbUser.id);
+          } catch (creditError) {
+            // Log but don't block sign-in if credit awarding fails
+            logger.error(
+              "Failed to award monthly credits on sign-in",
+              creditError,
+              { userId: dbUser.id }
+            );
+          }
         }
       }
 
@@ -186,12 +218,22 @@ const authConfig = {
 
       return token;
     },
+    async session({ session, token }) {
+      if (token && session.user) {
+        session.user = { ...session.user, ...token } as User;
+        if (token.image) {
+          session.user.image = token.image as string;
+        }
+        if (token.id) {
+          (session.user as any).id = token.id;
+        }
+        if (token.email) {
+          session.user.email = token.email as string;
+        }
+      }
+      return session;
+    },
   },
 } satisfies NextAuthConfig;
 
 export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
-
-
-
-
-

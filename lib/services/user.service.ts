@@ -1,21 +1,22 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
-import { logger } from "@/lib/logger";
+import PasswordResetEmail from "@/emails/password-reset-email";
+import VerificationEmail from "@/emails/verification-email";
 import { awardMonthlyCredits } from "@/lib/credits";
+import { getAppUrl, sendEmail } from "@/lib/email";
+import { logger } from "@/lib/logger";
+import { prisma } from "@/lib/prisma";
 import {
-  SignUpSchema,
-  SignInSchema,
   ForgotPasswordSchema,
   ResetPasswordSchema,
+  SignInSchema,
+  SignUpSchema,
   VerifyEmailSchema,
 } from "@/lib/validate";
-import { sendEmail, getAppUrl } from "@/lib/email";
+import { CreditTransactionType } from "@prisma/client";
+import { render } from "@react-email/render";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
-import { render } from "@react-email/render";
-import VerificationEmail from "@/emails/verification-email";
-import PasswordResetEmail from "@/emails/password-reset-email";
 
 // Token expiry times
 const EMAIL_VERIFICATION_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
@@ -66,9 +67,11 @@ export async function signUp(
     } catch (dbError: any) {
       logger.error("Database connection error", dbError);
       // Check if it's a connection error
-      if (dbError?.message?.includes("Can't reach database server") || 
-          dbError?.code === "P1001" || 
-          dbError?.code === "P1017") {
+      if (
+        dbError?.message?.includes("Can't reach database server") ||
+        dbError?.code === "P1001" ||
+        dbError?.code === "P1017"
+      ) {
         return {
           success: false,
           error: "Unable to connect to the database. Please try again later.",
@@ -85,7 +88,8 @@ export async function signUp(
         if (hasValidToken) {
           return {
             success: false,
-            message: "A verification email has already been sent. Please check your inbox or wait before requesting another.",
+            message:
+              "A verification email has already been sent. Please check your inbox or wait before requesting another.",
           };
         }
         // User exists but no valid token, create new one
@@ -99,7 +103,9 @@ export async function signUp(
             },
           });
 
-          const verificationUrl = getAppUrl(`/auth/verify-email?token=${token}`);
+          const verificationUrl = getAppUrl(
+            `/auth/verify-email?token=${token}`
+          );
           const emailHtml = await render(
             VerificationEmail({
               verificationUrl,
@@ -115,16 +121,23 @@ export async function signUp(
 
           return {
             success: false,
-            message: "A verification email has been sent. Please check your inbox.",
+            message:
+              "A verification email has been sent. Please check your inbox.",
           };
         } catch (dbError: any) {
-          logger.error("Database error while creating verification token", dbError);
-          if (dbError?.message?.includes("Can't reach database server") || 
-              dbError?.code === "P1001" || 
-              dbError?.code === "P1017") {
+          logger.error(
+            "Database error while creating verification token",
+            dbError
+          );
+          if (
+            dbError?.message?.includes("Can't reach database server") ||
+            dbError?.code === "P1001" ||
+            dbError?.code === "P1017"
+          ) {
             return {
               success: false,
-              error: "Unable to connect to the database. Please try again later.",
+              error:
+                "Unable to connect to the database. Please try again later.",
             };
           }
           throw dbError;
@@ -133,7 +146,8 @@ export async function signUp(
 
       return {
         success: false,
-        message: "An account with this email already exists. Please sign in instead.",
+        message:
+          "An account with this email already exists. Please sign in instead.",
       };
     }
 
@@ -153,9 +167,11 @@ export async function signUp(
     } catch (dbError: any) {
       logger.error("Database error while creating user", dbError);
       // Check if it's a connection error
-      if (dbError?.message?.includes("Can't reach database server") || 
-          dbError?.code === "P1001" || 
-          dbError?.code === "P1017") {
+      if (
+        dbError?.message?.includes("Can't reach database server") ||
+        dbError?.code === "P1001" ||
+        dbError?.code === "P1017"
+      ) {
         return {
           success: false,
           error: "Unable to connect to the database. Please try again later.",
@@ -165,11 +181,31 @@ export async function signUp(
       if (dbError?.code === "P2002") {
         return {
           success: false,
-          message: "An account with this email already exists. Please sign in instead.",
+          message:
+            "An account with this email already exists. Please sign in instead.",
         };
       }
       // Re-throw other database errors
       throw dbError;
+    }
+
+    // Create initial credit transaction with 0 credits
+    try {
+      await prisma.creditTransaction.create({
+        data: {
+          userId: user.id,
+          type: CreditTransactionType.EARNED,
+          amount: 0,
+          description: "Initial account setup",
+        },
+      });
+      logger.info("Initial credit transaction created for new user", {
+        userId: user.id,
+      });
+    } catch (dbError: any) {
+      logger.error("Database error while creating credit transaction", dbError);
+      // Don't block user creation if credit transaction fails
+      // User can still proceed, but we log the error
     }
 
     // Create verification token
@@ -185,9 +221,11 @@ export async function signUp(
       });
     } catch (dbError: any) {
       logger.error("Database error while creating verification token", dbError);
-      if (dbError?.message?.includes("Can't reach database server") || 
-          dbError?.code === "P1001" || 
-          dbError?.code === "P1017") {
+      if (
+        dbError?.message?.includes("Can't reach database server") ||
+        dbError?.code === "P1001" ||
+        dbError?.code === "P1017"
+      ) {
         return {
           success: false,
           error: "Unable to connect to the database. Please try again later.",
@@ -218,7 +256,8 @@ export async function signUp(
 
     return {
       success: true,
-      message: "Account created! Please check your email to verify your account.",
+      message:
+        "Account created! Please check your email to verify your account.",
     };
   } catch (error) {
     logger.error("Failed to sign up user", error);
@@ -230,7 +269,8 @@ export async function signUp(
     }
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Failed to create account",
+      error:
+        error instanceof Error ? error.message : "Failed to create account",
     };
   }
 }
@@ -265,7 +305,8 @@ export async function signIn(
     if (!user.emailVerified) {
       return {
         success: false,
-        error: "Please verify your email before signing in. Check your inbox for the verification link.",
+        error:
+          "Please verify your email before signing in. Check your inbox for the verification link.",
       };
     }
 
@@ -277,7 +318,10 @@ export async function signIn(
     }
 
     // Verify password
-    const isPasswordValid = await bcrypt.compare(validated.password, user.password);
+    const isPasswordValid = await bcrypt.compare(
+      validated.password,
+      user.password
+    );
 
     if (!isPasswordValid) {
       return {
@@ -417,7 +461,8 @@ export async function resendVerificationEmail(
       // Don't reveal if user exists
       return {
         success: true,
-        message: "If an account exists with this email, a verification link has been sent.",
+        message:
+          "If an account exists with this email, a verification link has been sent.",
       };
     }
 
@@ -474,7 +519,10 @@ export async function resendVerificationEmail(
     logger.error("Failed to resend verification email", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Failed to resend verification email",
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to resend verification email",
     };
   }
 }
@@ -510,7 +558,8 @@ export async function forgotPassword(
       // Don't reveal if user exists
       return {
         success: true,
-        message: "If an account exists with this email, a password reset link has been sent.",
+        message:
+          "If an account exists with this email, a password reset link has been sent.",
       };
     }
 
@@ -518,7 +567,8 @@ export async function forgotPassword(
     if (user.passwordResetTokens.length > 0) {
       return {
         success: false,
-        error: "A password reset email has already been sent. Please check your inbox.",
+        error:
+          "A password reset email has already been sent. Please check your inbox.",
       };
     }
 
@@ -566,7 +616,10 @@ export async function forgotPassword(
     }
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Failed to send password reset email",
+      error:
+        error instanceof Error
+          ? error.message
+          : "Failed to send password reset email",
     };
   }
 }
@@ -632,7 +685,8 @@ export async function resetPassword(
 
     return {
       success: true,
-      message: "Password reset successfully! You can now sign in with your new password.",
+      message:
+        "Password reset successfully! You can now sign in with your new password.",
     };
   } catch (error) {
     logger.error("Failed to reset password", error);
@@ -644,8 +698,8 @@ export async function resetPassword(
     }
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Failed to reset password",
+      error:
+        error instanceof Error ? error.message : "Failed to reset password",
     };
   }
 }
-
