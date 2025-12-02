@@ -26,14 +26,14 @@ const GOOGLE_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 // Note: Most Gemini models don't support image generation. Only specific preview models do.
 const GEMINI_IMAGE_MODEL = process.env.GEMINI_IMAGE_MODEL || "gemini-2.5-flash";
 const FALLBACK_MODELS = [
-  "gemini-2.5-flash", // Try this first - might work without aspectRatio
+  "gemini-2.5-flash-image-preview", // Try this first - might work without aspectRatio
   "gemini-2.5-flash-preview-image", // Original reference model
   "gemini-2.0-flash-exp",
   "gemini-1.5-flash",
 ];
 
 // Models that support aspect ratio configuration
-const MODELS_WITH_ASPECT_RATIO = ["gemini-2.5-flash-preview-image"];
+const MODELS_WITH_ASPECT_RATIO = ["imagen-4.0-generate-preview-06-06"];
 
 // --- HELPER: Initialize Gemini Client ---
 const getAiClient = () => {
