@@ -6,18 +6,21 @@
  * publicly available. Set GEMINI_IMAGE_MODEL environment variable to a model that
  * supports image generation, or this provider will try fallback models.
  *
- * Follows the reference pattern from comic generation code
+ * This version is optimized for interior design:
+ * - Uses user-uploaded room photo as base
+ * - Preserves architecture & perspective
+ * - Applies chosen style + custom instructions
  */
 
 import {
   GoogleGenAI,
-  Modality,
-  HarmCategory,
   HarmBlockThreshold,
+  HarmCategory,
+  Modality,
 } from "@google/genai";
+import { RoomType, StyleType } from "@prisma/client";
+import { GeneratedImageResult, GenerationInput } from "../imagen";
 import { logger } from "../logger";
-import { StyleType, RoomType } from "@prisma/client";
-import { GenerationInput, GeneratedImageResult } from "../imagen";
 
 const GOOGLE_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 
@@ -47,36 +50,37 @@ const getAiClient = () => {
   console.log("✓ Gemini API client initialized");
   return new GoogleGenAI({ apiKey });
 };
-// Style descriptions for prompts
+
+// --- STYLE PROMPTS (INTERIOR DESIGN FOCUSED) ---
 const STYLE_PROMPTS: Record<StyleType, string> = {
   MODERN_MINIMALIST:
-    "modern minimalist interior design, clean lines, neutral colors, sleek furniture, uncluttered, white walls, natural light, contemporary",
+    "Apply modern minimalist interior design: clean lines, neutral palette, hidden storage, matte finishes, simple geometric furniture, minimal décor, focus on space and light.",
   SCANDINAVIAN:
-    "scandinavian interior design, light oak wood, white walls, cozy hygge atmosphere, natural light, minimalist furniture, warm textiles",
+    "Apply Scandinavian design: light oak wood furniture, white or light walls, pastel accents, soft textiles, cozy hygge feel, simple forms, plants, lots of natural light.",
   INDUSTRIAL:
-    "industrial interior design, exposed brick, metal pipes, concrete floors, vintage Edison bulbs, raw materials, loft style",
+    "Apply industrial design: exposed brick, metal fixtures, concrete textures, visible pipes, raw materials, leather seating, loft-style vibe, moody warm lighting.",
   BOHEMIAN:
-    "bohemian interior design, colorful textiles, layered patterns, many plants, vintage furniture, eclectic global decor, artistic",
+    "Apply bohemian design: layered colorful textiles, patterns, many indoor plants, rattan and wood furniture, eclectic art, relaxed and artistic atmosphere.",
   TRADITIONAL:
-    "traditional interior design, elegant classic furniture, rich wood tones, ornate details, timeless sophistication",
+    "Apply traditional design: classic furniture, rich woods, elegant moldings, neutral base with deep accent colors, symmetry, timeless and formal but comfortable.",
   COASTAL:
-    "coastal interior design, ocean blues, sandy whites, natural textures, rattan furniture, beach house style, relaxed",
+    "Apply coastal design: white and beige base, ocean blue accents, light woods, rattan and jute textures, airy curtains, relaxed beach house feeling.",
   MID_CENTURY_MODERN:
-    "mid-century modern interior design, iconic retro furniture, organic shapes, warm woods, bold accent colors, 1960s style",
+    "Apply mid-century modern design: low-profile wood furniture, tapered legs, simple organic shapes, warm woods, muted bold colors, minimal clutter.",
   JAPANESE_ZEN:
-    "japanese zen interior design, minimal furniture, natural materials, shoji screens, peaceful atmosphere, wabi-sabi",
+    "Apply Japanese zen design: low minimal furniture, natural woods, tatami-like textures, shoji-inspired surfaces, soft indirect lighting, calm and balanced space.",
   CONTEMPORARY:
-    "contemporary interior design, current trends, bold art, mixed materials, sophisticated neutral palette",
+    "Apply contemporary design: clean lines, mixed materials, neutral base with bold art accents, large statement pieces, refined and current design trends.",
   RUSTIC:
-    "rustic interior design, reclaimed wood, stone accents, cozy farmhouse, natural warmth, vintage charm",
+    "Apply rustic design: reclaimed wood, stone accents, cozy textiles, farmhouse elements, warm earthy colors, visible grain and natural textures.",
   ART_DECO:
-    "art deco interior design, geometric patterns, luxurious materials, gold accents, glamorous 1920s style",
+    "Apply art deco design: bold geometric patterns, lacquered and glossy finishes, metallic accents (gold, brass), deep jewel tones, glamorous 1920s feel.",
   MEDITERRANEAN:
-    "mediterranean interior design, terracotta tiles, arched doorways, wrought iron, warm earth tones, Spanish villa",
+    "Apply Mediterranean design: warm earthy walls, terracotta or stone flooring, arches, wrought iron details, rustic wood, relaxed villa atmosphere.",
   LUXURY_MODERN:
-    "luxury modern interior design, premium finishes, designer furniture, marble accents, elegant lighting, high-end",
+    "Apply luxury modern design: premium finishes, marble or stone surfaces, designer furniture, statement lighting, minimal clutter, very high-end look.",
   CUSTOM:
-    "beautiful professional interior design, high quality, photorealistic",
+    "Apply a beautiful, professional, photorealistic interior design style suitable for high-end clients, with cohesive materials, furniture and lighting.",
 };
 
 const ROOM_TYPE_NAMES: Record<RoomType, string> = {
@@ -91,6 +95,70 @@ const ROOM_TYPE_NAMES: Record<RoomType, string> = {
 };
 
 /**
+ * Build a strong interior-design prompt based on:
+ * - room type
+ * - style
+ * - user custom instructions
+ * - reference image usage
+ */
+function buildInteriorPrompt(input: GenerationInput): string {
+  const roomName = ROOM_TYPE_NAMES[input.roomType] || ROOM_TYPE_NAMES.OTHER;
+  const styleDescription =
+    STYLE_PROMPTS[input.style] || STYLE_PROMPTS.CUSTOM;
+
+  const hasCustomInstructions =
+    typeof input.instructions === "string" && input.instructions.trim().length > 0;
+
+  const customInstructionBlock = hasCustomInstructions
+    ? `\nCUSTOM REQUEST FROM CLIENT:\n${input.instructions?.trim()}\n`
+    : "";
+
+  // You can tweak wording over time to “train” behaviour further.
+  return `
+You are an interior renovation AI assistant for professional designers.
+
+The client has uploaded a real photo of a ${roomName}. 
+Your job is to redesign ONLY the interior of that SAME room, keeping the architecture and perspective consistent.
+
+ROOM TYPE:
+- ${roomName}
+
+DESIGN STYLE:
+- ${input.style}
+- ${styleDescription}
+
+STRUCTURAL CONSTRAINTS (DO NOT CHANGE):
+- Keep the same wall positions, shape and proportions.
+- Keep the same doors, windows and openings in the same place.
+- Do NOT move or resize windows or doors.
+- Keep the same ceiling height and room geometry.
+- Keep the same camera angle, point of view and perspective.
+- The redesigned image must clearly look like the same physical room.
+
+WHAT YOU MUST CHANGE (DESIGN TRANSFORMATION):
+- Replace furniture with pieces that match the selected style.
+- Update wall finishes, paint and textures to fit the style.
+- Update flooring material and pattern, keeping the same overall layout.
+- Add or adjust décor items (artwork, rugs, plants, cushions, accessories).
+- Improve lighting: ceiling lights, lamps and natural light atmosphere.
+- Ensure realistic shadows, reflections and materials.
+- Avoid clutter; make it look like a finished, styled project.
+
+QUALITY REQUIREMENTS:
+- Ultra photorealistic interior render.
+- High resolution output suitable for client presentation.
+- Clean edges, no distortions or surreal artifacts.
+- Must look like a real photo of a professionally designed interior.
+
+${customInstructionBlock}
+IMPORTANT:
+- Use the uploaded room image as the base structure and geometry.
+- This is NOT a new imaginary space; it is a makeover of the SAME room.
+- Do NOT generate cartoon or illustration styles; keep it realistic.
+`.trim();
+}
+
+/**
  * Check if Google API is configured
  */
 export function isGoogleConfigured(): boolean {
@@ -98,7 +166,7 @@ export function isGoogleConfigured(): boolean {
 }
 
 /**
- * Generate images using Gemini 2.5 Flash Preview Image model
+ * Generate images using Gemini models
  * Supports reference images via base64 for style consistency
  */
 export async function generateWithGoogle(
@@ -110,19 +178,11 @@ export async function generateWithGoogle(
   }
 
   const ai = getAiClient();
-
-  const styleDesc = STYLE_PROMPTS[input.style] || STYLE_PROMPTS.CUSTOM;
-  const roomName = ROOM_TYPE_NAMES[input.roomType] || ROOM_TYPE_NAMES.OTHER;
-
-  const prompt = `A stunning ${roomName} interior with ${styleDesc}.
-Professional architectural photography, photorealistic, ultra HD 8k resolution,
-perfect natural lighting, high-end designer furniture and premium decor,
-interior design magazine cover quality, detailed textures, elegant and luxurious atmosphere.
-${input.instructions ? `Additional details: ${input.instructions}` : ""}`;
+  const prompt = buildInteriorPrompt(input);
 
   const results: GeneratedImageResult[] = [];
 
-  // Fetch reference image if provided (for style consistency)
+  // Fetch reference image if provided (for style consistency and geometry)
   let referenceImageBase64: string | null = null;
   if (input.originalImageUrl) {
     try {
@@ -148,15 +208,15 @@ ${input.instructions ? `Additional details: ${input.instructions}` : ""}`;
       ...FALLBACK_MODELS.filter((m) => m !== GEMINI_IMAGE_MODEL),
     ];
 
-    // Build base config - most models don't support aspectRatio (define once, reuse)
+    // Base generation configuration
     const baseConfig: any = {
       responseModalities: [Modality.IMAGE],
-      // Speed optimizations
-      temperature: 0.7, // Lower = faster & more consistent
-      candidateCount: 1, // Only generate 1 image
-      maxOutputTokens: 4096, // Limit output tokens for efficiency
-      topP: 0.9, // Nucleus sampling for faster generation
-      topK: 40, // Top-K sampling (lower = faster)
+      // Speed/quality tradeoffs
+      temperature: 0.7,
+      candidateCount: 1,
+      maxOutputTokens: 4096,
+      topP: 0.9,
+      topK: 40,
       // Safety settings
       safetySettings: [
         {
@@ -178,8 +238,13 @@ ${input.instructions ? `Additional details: ${input.instructions}` : ""}`;
       ],
     };
 
-    // Build parts array once (text prompt + optional reference image)
-    const parts: any[] = [{ text: prompt }];
+    // Build content parts: text prompt + optional reference image
+    const parts: any[] = [
+      {
+        text: prompt,
+      },
+    ];
+
     if (referenceImageBase64) {
       parts.push({
         inlineData: {
@@ -195,14 +260,14 @@ ${input.instructions ? `Additional details: ${input.instructions}` : ""}`;
           `🖼️ Generating Google Gemini image ${i + 1}/${numVariations} with model: ${modelName}...`
         );
 
-        // Try without aspectRatio first (most models don't support it)
-        let config = { ...baseConfig };
+        // Start with base config
+        let config: any = { ...baseConfig };
 
         // Only add imageConfig for models that explicitly support aspectRatio
         if (MODELS_WITH_ASPECT_RATIO.includes(modelName)) {
           config.imageConfig = {
-            aspectRatio: "16:9", // Wide format for rooms
-            imageSize: "1K", // Best speed/quality balance
+            aspectRatio: "16:9", // Good for room layouts
+            imageSize: "1K", // Balance of speed/quality
           };
         }
 
@@ -217,7 +282,7 @@ ${input.instructions ? `Additional details: ${input.instructions}` : ""}`;
           throw new Error("No image generated");
         }
 
-        const imagePart = responseParts.find((p) => p.inlineData);
+        const imagePart = responseParts.find((p: any) => p.inlineData);
 
         if (imagePart && imagePart.inlineData) {
           const imageBase64 = imagePart.inlineData.data;
@@ -232,6 +297,7 @@ ${input.instructions ? `Additional details: ${input.instructions}` : ""}`;
               style: input.style,
             },
           });
+
           console.log(
             `✓ Image ${i + 1} generated successfully with model: ${modelName}`
           );
@@ -261,7 +327,6 @@ ${input.instructions ? `Additional details: ${input.instructions}` : ""}`;
             `⚠️ Model ${modelName} doesn't support aspectRatio, trying without it...`
           );
           try {
-            // Use base config without imageConfig
             const retryResponse = await ai.models.generateContent({
               model: modelName,
               contents: { parts },
@@ -272,7 +337,7 @@ ${input.instructions ? `Additional details: ${input.instructions}` : ""}`;
               retryResponse.candidates?.[0]?.content?.parts;
             if (retryResponseParts) {
               const retryImagePart = retryResponseParts.find(
-                (p) => p.inlineData
+                (p: any) => p.inlineData
               );
               if (retryImagePart && retryImagePart.inlineData) {
                 const imageBase64 = retryImagePart.inlineData.data;
@@ -294,7 +359,6 @@ ${input.instructions ? `Additional details: ${input.instructions}` : ""}`;
               }
             }
           } catch (retryError) {
-            // If retry also fails, continue to next model
             console.warn(
               `⚠️ Retry without aspectRatio also failed for ${modelName}`
             );

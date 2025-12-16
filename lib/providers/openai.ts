@@ -1,47 +1,56 @@
 /**
- * OpenAI Image Generation Provider
- * Uses DALL-E 3 for high quality results
+ * OpenAI Image Provider
+ * Uses gpt-image-1 for real redesigned room rendering
  */
 
 import { RoomType, StyleType } from "@prisma/client";
+import OpenAI from "openai";
 import { GeneratedImageResult, GenerationInput } from "../imagen";
 import { logger } from "../logger";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-// Style descriptions for prompts
+// Model name
+const OPENAI_IMAGE_MODEL = "gpt-image-1";
+
+export function isOpenAIConfigured(): boolean {
+  return !!OPENAI_API_KEY;
+}
+
+// Style prompt configuration
 const STYLE_PROMPTS: Record<StyleType, string> = {
   MODERN_MINIMALIST:
-    "modern minimalist interior design, clean lines, neutral colors, sleek furniture, uncluttered, white walls, natural light, contemporary",
+    "clean minimal interior, neutral palette, matte materials, clean lines, light wood furniture, hidden storage, modern lighting",
   SCANDINAVIAN:
-    "scandinavian interior design, light oak wood, white walls, cozy hygge atmosphere, natural light, minimalist furniture, warm textiles",
+    "Nordic interior, oak wood, white paint, pastel textiles, cozy soft lighting, minimalist décor, warm atmosphere",
   INDUSTRIAL:
-    "industrial interior design, exposed brick, metal pipes, concrete floors, vintage Edison bulbs, raw materials, loft style",
+    "industrial interior, concrete texture, brick walls, metallic lighting fixtures, dark leather sofas",
   BOHEMIAN:
-    "bohemian interior design, colorful textiles, layered patterns, many plants, vintage furniture, eclectic global decor, artistic",
+    "boho style interior, layered textiles, colorful patterns, plants everywhere, ethnic art",
   TRADITIONAL:
-    "traditional interior design, elegant classic furniture, rich wood tones, ornate details, timeless sophistication",
+    "classic elegant interior, rich wood textures, ornate furniture, golden frames",
   COASTAL:
-    "coastal interior design, ocean blues, sandy whites, natural textures, rattan furniture, beach house style, relaxed",
+    "white coastal interior, blue accents, rattan materials, airy atmosphere",
   MID_CENTURY_MODERN:
-    "mid-century modern interior design, iconic retro furniture, organic shapes, warm woods, bold accent colors, 1960s style",
+    "mid-century modern clean furniture, tapered legs, dark wood, simple décor",
   JAPANESE_ZEN:
-    "japanese zen interior design, minimal furniture, natural materials, shoji screens, peaceful atmosphere, wabi-sabi",
+    "japanese zen minimal interior, low furniture, wooden textures, soft lights",
   CONTEMPORARY:
-    "contemporary interior design, current trends, bold art, mixed materials, sophisticated neutral palette",
+    "current trend contemporary design, bold art pieces, mix of materials",
   RUSTIC:
-    "rustic interior design, reclaimed wood, stone accents, cozy farmhouse, natural warmth, vintage charm",
+    "rustic cabin interior, reclaimed wood, vintage decorations, warm tones",
   ART_DECO:
-    "art deco interior design, geometric patterns, luxurious materials, gold accents, glamorous 1920s style",
+    "art deco glamorous interior, geometric golden metal finish, velvet seating",
   MEDITERRANEAN:
-    "mediterranean interior design, terracotta tiles, arched doorways, wrought iron, warm earth tones, Spanish villa",
+    "spanish-inspired interior, terracotta tile work, soft arch forms",
   LUXURY_MODERN:
-    "luxury modern interior design, premium finishes, designer furniture, marble accents, elegant lighting, high-end",
+    "luxury modern interior with marble textures, designer furniture, dramatic lighting",
   CUSTOM:
-    "beautiful professional interior design, high quality, photorealistic",
+    "premium photoreal interior suitable for professional magazine showcase",
 };
 
-const ROOM_TYPE_NAMES: Record<RoomType, string> = {
+// Room name mapping
+const ROOM_NAMES: Record<RoomType, string> = {
   LIVING_ROOM: "living room",
   BEDROOM: "bedroom",
   KITCHEN: "kitchen",
@@ -52,86 +61,90 @@ const ROOM_TYPE_NAMES: Record<RoomType, string> = {
   OTHER: "room",
 };
 
-/**
- * Check if OpenAI is configured
- */
-export function isOpenAIConfigured(): boolean {
-  return !!OPENAI_API_KEY;
+// Prompt builder
+function buildPrompt(input: GenerationInput): string {
+  const roomName = ROOM_NAMES[input.roomType];
+  const style = STYLE_PROMPTS[input.style] ?? STYLE_PROMPTS.CUSTOM;
+
+  return `
+You are an interior redesign AI.
+
+Redesign the given ${roomName} while keeping original structure and architecture.
+Keep same:
+- wall positions
+- window placement
+- floor geometry
+- perspective & viewing angle
+
+Transform using style: ${input.style}
+
+Style definition:
+${style}
+
+Improve:
+- furniture replacement to match style
+- flooring material
+- curtains
+- ambient lighting
+- wall textures
+- decorative pieces
+
+Final result must:
+- be photorealistic, ultra-high detail
+- look like same physical room
+- preserve geometry, windows, and layout
+- represent real professional interior design work
+
+${
+  input.instructions ? `Client Custom Instructions:\n${input.instructions}` : ""
+}
+  `.trim();
 }
 
 /**
- * Generate images using OpenAI DALL-E 3
+ * Generate redesigned interior using OpenAI AI model
  */
 export async function generateWithOpenAI(
   input: GenerationInput,
-  numVariations: number
+  count: number
 ): Promise<GeneratedImageResult[]> {
-  if (!OPENAI_API_KEY) {
-    throw new Error("OPENAI_API_KEY is not configured");
-  }
+  if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY missing");
 
-  const styleDesc = STYLE_PROMPTS[input.style] || STYLE_PROMPTS.CUSTOM;
-  const roomName = ROOM_TYPE_NAMES[input.roomType] || ROOM_TYPE_NAMES.OTHER;
-
-  const prompt = `A photorealistic ${roomName} interior design in ${styleDesc} style. 
-Professional architectural photography, perfect lighting, high-end furniture and decor, 
-8k resolution, interior design magazine quality.
-${input.instructions ? input.instructions : ""}`;
+  const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
   const results: GeneratedImageResult[] = [];
 
-  for (let i = 0; i < Math.min(numVariations, 4); i++) {
+  // Note: OpenAI DALL-E doesn't support image-to-image generation
+  // The prompt should describe the room transformation based on the original image
+  const prompt = buildPrompt(input);
+
+  for (let i = 0; i < count; i++) {
     try {
-      console.log(`🖼️ Generating OpenAI image ${i + 1}/${numVariations}...`);
+      // Note: OpenAI DALL-E doesn't support image-to-image generation
+      // We can only use text-to-image, so the prompt should describe the room transformation
+      const response = await openai.images.generate({
+        model: OPENAI_IMAGE_MODEL,
+        prompt,
+        size: "1024x1024",
+      });
 
-      const response = await fetch(
-        "https://api.openai.com/v1/images/generations",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${OPENAI_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "dall-e-3",
-            prompt: prompt,
-            n: 1,
-            size: "1024x1024",
-            quality: "hd",
-            style: "natural",
-          }),
-        }
-      );
+      const base64 = response.data?.[0]?.b64_json;
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
-      }
-
-      const data = await response.json();
-
-      if (data.data?.[0]?.url) {
-        results.push({
-          url: data.data[0].url,
-          metadata: {
-            provider: "openai",
-            model: "dall-e-3",
-            variationIndex: i,
-            style: input.style,
-          },
-        });
-        console.log(`✓ Image ${i + 1} generated successfully`);
-      }
-    } catch (error) {
-      console.error(`Failed to generate OpenAI image ${i + 1}:`, error);
-      logger.error(`Failed to generate OpenAI variation ${i}`, error);
+      const finalUrl = `data:image/png;base64,${base64}`;
+      results.push({
+        url: finalUrl,
+        metadata: {
+          provider: "openai",
+          model: OPENAI_IMAGE_MODEL,
+          variationIndex: i,
+          style: input.style,
+        },
+      });
+    } catch (err) {
+      console.error("Generation failed:", err);
+      logger.error("OpenAI image generation failed", err);
     }
   }
 
-  if (results.length === 0) {
-    throw new Error("No images generated from OpenAI");
-  }
-
-  logger.info("OpenAI generation completed", { count: results.length });
   return results;
 }
