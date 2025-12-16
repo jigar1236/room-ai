@@ -65,7 +65,7 @@ export async function createDesign(data: {
       },
     });
 
-    // Generate AI images
+    // Generate AI images (4 variations as per credits)
     const generatedImages = await generateDesignImages({
       originalImageUrl: uploadResult.url,
       style: data.style,
@@ -74,10 +74,22 @@ export async function createDesign(data: {
       numVariations: 4,
     });
 
-    // Save generated images
+    // Validate generated images
+    if (!generatedImages || generatedImages.length === 0) {
+      throw new Error("No images were generated");
+    }
+
+    // Upload and save generated images
+    const uploadedImages: Array<{ url: string; key: string; metadata?: any }> = [];
     const savedImages = await Promise.all(
       generatedImages.map(async (imageData, index) => {
         try {
+          // Skip if imageData is invalid
+          if (!imageData || !imageData.url) {
+            logger.warn("Skipping invalid image data", { index });
+            return null;
+          }
+
           let imageUrl = imageData.url;
           let imageKey = imageData.url;
 
@@ -93,19 +105,49 @@ export async function createDesign(data: {
               );
               imageUrl = uploaded.url;
               imageKey = uploaded.key;
+              
+              // Store uploaded image info even if DB save fails
+              uploadedImages.push({
+                url: imageUrl,
+                key: imageKey,
+                metadata: imageData.metadata,
+              });
             }
+          } else {
+            // Already a URL, store it
+            uploadedImages.push({
+              url: imageUrl,
+              key: imageKey,
+              metadata: imageData.metadata,
+            });
           }
 
-          return prisma.generatedImage.create({
-            data: {
-              designId: design!.id,
+          // Try to save to database
+          try {
+            return await prisma.generatedImage.create({
+              data: {
+                designId: design!.id,
+                imageUrl,
+                imageKey,
+                metadata: imageData.metadata,
+              },
+            });
+          } catch (dbError) {
+            logger.error("Failed to save generated image to database", dbError, { 
+              index, 
+              imageUrl,
+              designId: design!.id 
+            });
+            // Return a mock object with the URL so we can still return the images
+            return {
+              id: `temp-${index}-${Date.now()}`,
               imageUrl,
               imageKey,
-              metadata: imageData.metadata,
-            },
-          });
+              isFavorite: false,
+            } as any;
+          }
         } catch (error) {
-          logger.error("Failed to save generated image", error, { index });
+          logger.error("Failed to process generated image", error, { index });
           return null;
         }
       })
@@ -114,14 +156,37 @@ export async function createDesign(data: {
     const validImages = savedImages.filter((img) => img !== null);
 
     if (validImages.length === 0) {
+      // If database save failed but images were uploaded, return the uploaded URLs
+      if (uploadedImages.length > 0) {
+        logger.warn("Database save failed but images were uploaded successfully", {
+          uploadedCount: uploadedImages.length,
+          designId: design!.id,
+        });
+        
+        // Return uploaded images even without DB records
+        return {
+          designId: design!.id,
+          generations: uploadedImages.map((img, idx) => ({
+            id: `temp-${idx}-${Date.now()}`,
+            imageUrl: img.url,
+            isFavorite: false,
+          })),
+          warning: "Images generated but database save failed. Images are available but may not persist.",
+        };
+      }
       throw new Error("No images were generated successfully");
     }
 
-    // Update design status
-    await prisma.design.update({
-      where: { id: design.id },
-      data: { status: GenerationStatus.COMPLETED },
-    });
+    // Update design status (try to update, but don't fail if DB is down)
+    try {
+      await prisma.design.update({
+        where: { id: design.id },
+        data: { status: GenerationStatus.COMPLETED },
+      });
+    } catch (statusError) {
+      logger.error("Failed to update design status", statusError, { designId: design.id });
+      // Continue anyway - images are already generated and uploaded
+    }
 
     revalidatePath("/dashboard");
     revalidatePath("/gallery");

@@ -13,8 +13,9 @@
 
 import { RoomType, StyleType } from "@prisma/client";
 import { logger } from "./logger";
-import { generateWithGoogle, isGoogleConfigured } from "./providers/google";
-
+import { isHuggingFaceConfigured } from "./providers/huggingface";
+import { generateWithLocalStableDiffusion, isLocalSDRunning } from "./providers/local-stable-diffusion";
+import { imageJobQueue } from "./services/job-queue";
 // API Keys - check at runtime
 const HF_TOKEN = process.env.HUGGINGFACE_API_KEY;
 const GOOGLE_API_KEY = process.env.GEMINI_API_KEY;
@@ -66,27 +67,59 @@ export async function generateDesignImages(
   // if (isHuggingFaceConfigured()) {
   //   try {
   //     console.log("🎨 Trying Hugging Face...");
+  //     logger.info("🔍 [DEBUG] Attempting Hugging Face generation", {
+  //       input: {
+  //         style: input.style,
+  //         roomType: input.roomType,
+  //         hasOriginalImageUrl: !!input.originalImageUrl,
+  //         numVariations,
+  //       },
+  //     });
   //     const result = await generateWithHuggingFace(input, numVariations);
   //     console.log("✅ Hugging Face succeeded!");
+  //     logger.info("🔍 [DEBUG] Hugging Face generation succeeded", {
+  //       resultCount: result.length,
+  //     });
   //     return result;
   //   } catch (error) {
+  //     const errorDetails = error instanceof Error ? {
+  //       message: error.message,
+  //       stack: error.stack,
+  //       name: error.name,
+  //     } : { error: String(error) };
+      
   //     console.error("❌ Hugging Face failed:", error);
-  //     logger.error("Hugging Face generation failed", error);
+  //     logger.error("🔍 [DEBUG] Hugging Face generation failed", errorDetails);
   //   }
   // }
 
-  // Try Google Imagen-3.0 (FREE tier, large quota, no billing)
-  if (isGoogleConfigured()) {
+  if (await isLocalSDRunning()) {
     try {
-      console.log("🎨 Trying Google Imagen...");
-      const result = await generateWithGoogle(input, numVariations);
-      console.log("✅ Google Imagen succeeded!");
+      console.log("🎨 Trying Local Stable Diffusion...");
+      const result = await imageJobQueue.add(() =>
+        generateWithLocalStableDiffusion(input, numVariations)
+      );
+      console.log("✅ Local Stable Diffusion succeeded!");
       return result;
     } catch (error) {
-      console.error("❌ Google Imagen failed:", error);
-      logger.error("Google Imagen generation failed", error);
+      console.error("❌ Local Stable Diffusion failed:", error);
+      logger.error("Local Stable Diffusion failed", error);
     }
   }
+
+
+  // Try Google Imagen-3.0 (FREE tier, large quota, no billing)
+  // if (isGoogleConfigured()) {
+  //   try {
+  //     console.log("🎨 Trying Google Imagen...");
+  //     const result = await generateWithGoogle(input, numVariations);
+  //     console.log("✅ Google Imagen succeeded!");
+  //     return result;
+  //   } catch (error) {
+  //     console.error("❌ Google Imagen failed:", error);
+  //     logger.error("Google Imagen generation failed", error);
+  //   }
+  // }
 
   // Try OpenRouter (supports multiple models)
   // if (isOpenRouterConfigured()) {
@@ -181,10 +214,12 @@ function generatePlaceholder(
 /**
  * Check which providers are configured
  */
-export function getConfiguredProviders(): string[] {
+export async function getConfiguredProviders(): Promise<string[]> {
   const providers: string[] = [];
   // if (isHuggingFaceConfigured()) providers.push("huggingface");
-  if (isGoogleConfigured()) providers.push("google");
+  if (await isLocalSDRunning()) providers.push("local-stable-diffusion"); 
+
+  // if (isGoogleConfigured()) providers.push("google");
   // if (isOpenRouterConfigured()) providers.push("openrouter");
   // if (isFalConfigured()) providers.push("fal");
   // if (isReplicateConfigured()) providers.push("replicate");
@@ -195,10 +230,12 @@ export function getConfiguredProviders(): string[] {
 /**
  * Check if any image generation is configured
  */
-export function isImageGenerationConfigured(): boolean {
+export async function isImageGenerationConfigured(): Promise<boolean> {
   return !!(
-    // isHuggingFaceConfigured() ||
-    isGoogleConfigured()
+    // isHuggingFaceConfigured() 
+    await isLocalSDRunning() 
+    // ||
+    // isGoogleConfigured()
     // isOpenRouterConfigured()
     // ||
     // isFalConfigured()
@@ -211,10 +248,11 @@ export function isImageGenerationConfigured(): boolean {
 /**
  * Get configuration status for debugging
  */
-export function getConfigStatus(): Record<string, boolean> {
+export async function getConfigStatus(): Promise<Record<string, boolean>> {
   return {
-    // HF_TOKEN: isHuggingFaceConfigured(),
-    GOOGLE_API_KEY: isGoogleConfigured(),
+    HF_TOKEN: isHuggingFaceConfigured(),
+    LOCAL_SD_AVAILABLE: await isLocalSDRunning(),
+    // GOOGLE_API_KEY: isGoogleConfigured(),
     // OPENROUTER_API_KEY: isOpenRouterConfigured(),
     // FAL_KEY: isFalConfigured(),
     // REPLICATE_API_TOKEN: isReplicateConfigured(),
