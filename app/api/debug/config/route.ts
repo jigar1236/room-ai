@@ -7,10 +7,10 @@ export async function GET() {
   
   return NextResponse.json({
     message: "Image Generation API Configuration",
-    configured: providers.length > 0,
+    configured: (await providers).length > 0,
     providers: providers,
     details: status,
-    help: providers.length === 0 ? {
+    help: (await providers).length === 0 ? {
       message: "No image generation API is configured. Add one of these to your .env file:",
       options: [
         {
