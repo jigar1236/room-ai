@@ -45,6 +45,7 @@ interface GalleryProps {
   designs: GalleryDesign[];
   onFavorite?: (imageId: string) => void;
   onDelete?: (designId: string) => void;
+  onDeleteImage?: (imageId: string) => void;
   className?: string;
 }
 
@@ -52,6 +53,7 @@ export function Gallery({
   designs,
   onFavorite,
   onDelete,
+  onDeleteImage,
   className,
 }: GalleryProps) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -78,7 +80,7 @@ export function Gallery({
     return true;
   });
 
-  const handleDownload = async (imageId: string, format: "png" | "jpg") => {
+  const handleDownload = async (imageId: string, format: "png") => {
     const image = allImages.find((img) => img.id === imageId);
     if (!image) return;
 
@@ -88,12 +90,12 @@ export function Gallery({
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `roomai-design-${imageId}.${format}`;
+      a.download = `roomai-design-${imageId}.png`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
-      toast.success(`Image downloaded as ${format.toUpperCase()}`);
+      toast.success("Image downloaded as PNG");
     } catch (error) {
       toast.error("Failed to download image");
     }
@@ -199,6 +201,7 @@ export function Gallery({
                 isFavorite={image.isFavorite}
                 onFavorite={onFavorite}
                 onDownload={handleDownload}
+                onDelete={onDeleteImage}
               />
             </div>
           ))}

@@ -80,46 +80,46 @@ export function UploadHero({
     return (
       <div
         className={cn(
-          "relative rounded-2xl overflow-hidden glass gradient-border animate-scale-in",
+          "relative rounded-xl overflow-hidden glass border border-border/50 shadow-lg animate-scale-in",
           className
         )}
       >
-        <div className="aspect-video max-h-[500px] overflow-hidden">
+        <div className="relative w-full h-[500px] overflow-hidden">
           <img
             src={preview}
             alt="Room preview"
             className="w-full h-full object-cover"
           />
         </div>
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-        <div className="absolute bottom-0 left-0 right-0 p-6 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center">
-              <Camera className="w-5 h-5 text-primary" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent pointer-events-none" />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRemove}
+          disabled={isUploading}
+          className="absolute top-4 right-4 bg-white/10 backdrop-blur-sm border-white/30 text-white hover:bg-white/20 hover:text-white shadow-md z-10"
+        >
+          <X className="w-4 h-4 mr-2" />
+          Change Image
+        </Button>
+        <div className="absolute bottom-0 left-0 right-0 p-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-primary/20 backdrop-blur-sm border border-primary/30 flex items-center justify-center shadow-md">
+              <Camera className="w-6 h-6 text-primary" />
             </div>
             <div>
-              <p className="text-sm font-medium text-white">Room Image Ready</p>
-              <p className="text-xs text-white/70">
+              <p className="text-base font-semibold text-white">Room Image Ready</p>
+              <p className="text-sm text-white/80">
                 Select a style below to generate designs
               </p>
             </div>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRemove}
-            disabled={isUploading}
-            className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white"
-          >
-            <X className="w-4 h-4 mr-2" />
-            Change Image
-          </Button>
         </div>
         {isUploading && (
-          <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
-            <div className="text-center">
-              <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto mb-3" />
-              <p className="text-sm font-medium">Processing your image...</p>
+          <div className="absolute inset-0 bg-background/90 backdrop-blur-sm flex items-center justify-center">
+            <div className="text-center space-y-4">
+              <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
+              <p className="text-base font-semibold">Processing your image...</p>
             </div>
           </div>
         )}
@@ -130,7 +130,7 @@ export function UploadHero({
   return (
     <div
       className={cn(
-        "upload-zone cursor-pointer rounded-2xl p-8 md:p-12 text-center transition-all duration-300",
+        "upload-zone cursor-pointer rounded-xl p-10 md:p-14 text-center transition-all duration-300",
         isDragging && "dragging",
         className
       )}
@@ -146,40 +146,40 @@ export function UploadHero({
         className="hidden"
         onChange={handleFileSelect}
       />
-      <div className="max-w-md mx-auto space-y-6">
+      <div className="max-w-lg mx-auto space-y-8">
         <div className="relative">
-          <div className="w-20 h-20 mx-auto rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center animate-pulse-glow">
-            <Upload className="w-10 h-10 text-primary" />
+          <div className="w-24 h-24 mx-auto rounded-2xl glass border-2 border-primary/30 flex items-center justify-center animate-pulse-glow shadow-lg">
+            <Upload className="w-12 h-12 text-primary" />
           </div>
-          <div className="absolute -top-1 -right-1 w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center">
-            <Sparkles className="w-4 h-4 text-accent" />
+          <div className="absolute -top-2 -right-2 w-10 h-10 rounded-xl glass border border-accent/30 flex items-center justify-center shadow-md">
+            <Sparkles className="w-5 h-5 text-accent" />
           </div>
         </div>
-        <div className="space-y-2">
-          <h3 className="font-display text-2xl font-semibold text-foreground">
+        <div className="space-y-3">
+          <h3 className="text-3xl font-bold text-foreground">
             Upload Your Room
           </h3>
-          <p className="text-muted-foreground">
+          <p className="text-muted-foreground text-base">
             Drag and drop your room photo here, or click to browse
           </p>
         </div>
-        <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted/50">
-            <ImageIcon className="w-3.5 h-3.5" />
+        <div className="flex flex-wrap items-center justify-center gap-3 text-sm">
+          <span className="flex items-center gap-2 px-4 py-2 rounded-lg glass border border-border/50">
+            <ImageIcon className="w-4 h-4 text-primary" />
             PNG, JPG, WEBP
           </span>
-          <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted/50">
+          <span className="flex items-center gap-2 px-4 py-2 rounded-lg glass border border-border/50">
             Up to 10MB
           </span>
-          <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted/50">
+          <span className="flex items-center gap-2 px-4 py-2 rounded-lg glass border border-border/50">
             Min 512×512px
           </span>
         </div>
         <Button
           size="lg"
-          className="btn-shine bg-gradient-to-r from-primary to-emerald-600 hover:from-primary/90 hover:to-emerald-600/90"
+          className="btn-shine bg-gradient-to-r from-primary via-primary/90 to-primary hover:shadow-xl text-base px-8 h-12 rounded-xl shadow-lg font-semibold"
         >
-          <Upload className="w-4 h-4 mr-2" />
+          <Upload className="w-5 h-5 mr-2" />
           Choose Image
         </Button>
       </div>

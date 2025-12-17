@@ -4,7 +4,7 @@ import { requireUserId } from "@/lib/auth";
 import { deductCredits, getCreditsRequired, refundCredits } from "@/lib/credits";
 import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
-import { uploadRoomImage, uploadGeneratedImage } from "@/lib/blob";
+import { uploadRoomImage, uploadGeneratedImage, deleteBlob } from "@/lib/blob";
 import { generateDesignImages } from "@/lib/imagen";
 import { GenerationStatus, StyleType, RoomType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
@@ -71,7 +71,7 @@ export async function createDesign(data: {
       style: data.style,
       roomType: data.roomType,
       instructions: data.instructions,
-      numVariations: 4,
+      numVariations: 1,
     });
 
     // Validate generated images
@@ -333,6 +333,46 @@ export async function toggleFavorite(imageId: string) {
 }
 
 /**
+ * Delete a single generated image
+ */
+export async function deleteImage(imageId: string) {
+  const userId = await requireUserId();
+
+  // Verify ownership through design
+  const image = await prisma.generatedImage.findFirst({
+    where: {
+      id: imageId,
+      design: { userId },
+    },
+    include: {
+      design: true,
+    },
+  });
+
+  if (!image) {
+    throw new Error("Image not found");
+  }
+
+  // Delete blob from storage
+  try {
+    await deleteBlob(image.imageKey);
+  } catch (error) {
+    logger.error("Failed to delete blob", error, { imageKey: image.imageKey });
+    // Continue with DB deletion even if blob deletion fails
+  }
+
+  // Delete from database
+  await prisma.generatedImage.delete({
+    where: { id: imageId },
+  });
+
+  revalidatePath("/gallery");
+  revalidatePath("/dashboard");
+
+  return { success: true };
+}
+
+/**
  * Delete a design and all its generated images
  */
 export async function deleteDesign(designId: string) {
@@ -341,17 +381,31 @@ export async function deleteDesign(designId: string) {
   // Verify ownership
   const design = await prisma.design.findFirst({
     where: { id: designId, userId },
+    include: {
+      generations: true,
+    },
   });
 
   if (!design) {
     throw new Error("Design not found");
   }
 
+  // Delete all generated images' blobs
+  for (const generation of design.generations) {
+    try {
+      await deleteBlob(generation.imageKey);
+    } catch (error) {
+      logger.error("Failed to delete blob", error, { imageKey: generation.imageKey });
+    }
+  }
+
+  // Delete design (cascades to delete all generated images)
   await prisma.design.delete({
     where: { id: designId },
   });
 
   revalidatePath("/gallery");
+  revalidatePath("/dashboard");
 
   return { success: true };
 }

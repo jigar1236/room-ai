@@ -15,6 +15,7 @@ import { RoomType, StyleType } from "@prisma/client";
 import { logger } from "./logger";
 import { isHuggingFaceConfigured } from "./providers/huggingface";
 import { generateWithLocalStableDiffusion, isLocalSDRunning } from "./providers/local-stable-diffusion";
+import { generateWithAIGateway, isAIGatewayConfigured } from "./providers/ai-gateway";
 import { imageJobQueue } from "./services/job-queue";
 // API Keys - check at runtime
 const HF_TOKEN = process.env.HUGGINGFACE_API_KEY;
@@ -23,6 +24,7 @@ const FAL_KEY = process.env.FAL_KEY;
 const REPLICATE_API_TOKEN = process.env.REPLICATE_API_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+const AI_GATEWAY_API_KEY = process.env.AI_GATEWAY_API_KEY;
 
 export interface GenerationInput {
   originalImageUrl: string;
@@ -43,9 +45,10 @@ export interface GeneratedImageResult {
 export async function generateDesignImages(
   input: GenerationInput
 ): Promise<GeneratedImageResult[]> {
-  const numVariations = input.numVariations || 4;
+  const numVariations = input.numVariations || 2;
 
   const configStatus = {
+    AI_GATEWAY_API_KEY: !!AI_GATEWAY_API_KEY,
     HF_TOKEN: !!HF_TOKEN,
     GOOGLE_API_KEY: !!GOOGLE_API_KEY,
     FAL_KEY: !!FAL_KEY,
@@ -62,6 +65,19 @@ export async function generateDesignImages(
   });
 
   console.log("🔧 API Configuration:", configStatus);
+
+  // Try AI Gateway first
+  if (isAIGatewayConfigured()) {
+    try {
+      console.log("🎨 Trying AI Gateway...");
+      const result = await generateWithAIGateway(input, numVariations);
+      console.log("✅ AI Gateway succeeded!");
+      return result;
+    } catch (error) {
+      console.error("❌ AI Gateway failed:", error);
+      logger.error("AI Gateway generation failed", error);
+    }
+  }
 
   // Try Hugging Face first (FLUX.1-dev via Nebius)
   // if (isHuggingFaceConfigured()) {
@@ -93,19 +109,20 @@ export async function generateDesignImages(
   //   }
   // }
 
-  if (await isLocalSDRunning()) {
-    try {
-      console.log("🎨 Trying Local Stable Diffusion...");
-      const result = await imageJobQueue.add(() =>
-        generateWithLocalStableDiffusion(input, numVariations)
-      );
-      console.log("✅ Local Stable Diffusion succeeded!");
-      return result;
-    } catch (error) {
-      console.error("❌ Local Stable Diffusion failed:", error);
-      logger.error("Local Stable Diffusion failed", error);
-    }
-  }
+  // Local Stable Diffusion - commented out
+  // if (await isLocalSDRunning()) {
+  //   try {
+  //     console.log("🎨 Trying Local Stable Diffusion...");
+  //     const result = await imageJobQueue.add(() =>
+  //       generateWithLocalStableDiffusion(input, numVariations)
+  //     );
+  //     console.log("✅ Local Stable Diffusion succeeded!");
+  //     return result;
+  //   } catch (error) {
+  //     console.error("❌ Local Stable Diffusion failed:", error);
+  //     logger.error("Local Stable Diffusion failed", error);
+  //   }
+  // }
 
 
   // Try Google Imagen-3.0 (FREE tier, large quota, no billing)
@@ -203,7 +220,7 @@ function generatePlaceholder(
         variationIndex: i,
         style,
         message:
-          "⚠️ Preview Mode - Add OPENROUTER_API_KEY, HF_TOKEN, GOOGLE_API_KEY, FAL_KEY, REPLICATE_API_TOKEN, or OPENAI_API_KEY to enable AI image generation",
+          "⚠️ Preview Mode - Add AI_GATEWAY_API_KEY, OPENROUTER_API_KEY, HF_TOKEN, GOOGLE_API_KEY, FAL_KEY, REPLICATE_API_TOKEN, or OPENAI_API_KEY to enable AI image generation",
       },
     });
   }
@@ -216,8 +233,9 @@ function generatePlaceholder(
  */
 export async function getConfiguredProviders(): Promise<string[]> {
   const providers: string[] = [];
+  if (isAIGatewayConfigured()) providers.push("ai-gateway");
   // if (isHuggingFaceConfigured()) providers.push("huggingface");
-  if (await isLocalSDRunning()) providers.push("local-stable-diffusion"); 
+  // if (await isLocalSDRunning()) providers.push("local-stable-diffusion"); 
 
   // if (isGoogleConfigured()) providers.push("google");
   // if (isOpenRouterConfigured()) providers.push("openrouter");
@@ -232,8 +250,9 @@ export async function getConfiguredProviders(): Promise<string[]> {
  */
 export async function isImageGenerationConfigured(): Promise<boolean> {
   return !!(
-    // isHuggingFaceConfigured() 
-    await isLocalSDRunning() 
+    isAIGatewayConfigured()
+    // || isHuggingFaceConfigured() 
+    // || await isLocalSDRunning() 
     // ||
     // isGoogleConfigured()
     // isOpenRouterConfigured()
@@ -250,8 +269,9 @@ export async function isImageGenerationConfigured(): Promise<boolean> {
  */
 export async function getConfigStatus(): Promise<Record<string, boolean>> {
   return {
+    AI_GATEWAY_API_KEY: isAIGatewayConfigured(),
     HF_TOKEN: isHuggingFaceConfigured(),
-    LOCAL_SD_AVAILABLE: await isLocalSDRunning(),
+    // LOCAL_SD_AVAILABLE: await isLocalSDRunning(),
     // GOOGLE_API_KEY: isGoogleConfigured(),
     // OPENROUTER_API_KEY: isOpenRouterConfigured(),
     // FAL_KEY: isFalConfigured(),
