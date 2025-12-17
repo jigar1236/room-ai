@@ -195,29 +195,38 @@ export default function DashboardPage() {
 
   return (
     <DashboardLayout>
-      <div className="max-w-7xl mx-auto space-y-8">
+      <div className="max-w-7xl mx-auto space-y-10">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 animate-fade-in">
-          <div>
-            <h1 className="text-3xl md:text-4xl font-display font-bold">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 animate-fade-in">
+          <div className="space-y-2">
+            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
               Welcome back, {userName}
             </h1>
-            <p className="text-muted-foreground mt-1">
+            <p className="text-muted-foreground text-lg">
               Transform your space with AI-powered interior design
             </p>
           </div>
           {credits !== null && (
-            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20">
-              <Zap className="w-4 h-4 text-primary" />
-              <span className="text-sm font-medium">
-                <span className="text-primary">{credits}</span> credits remaining
-              </span>
+            <div className="flex items-center gap-3 px-6 py-3 rounded-xl glass border border-primary/30 shadow-md">
+              <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
+                <Zap className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground font-medium">Credits</p>
+                <p className="text-lg font-bold text-foreground">
+                  <span className="text-primary">{credits}</span> remaining
+                </p>
+              </div>
             </div>
           )}
         </div>
 
         {/* Upload Section */}
         <section className="space-y-6 animate-fade-in stagger-1">
+          <div className="space-y-3">
+            <h2 className="text-2xl font-semibold">Get Started</h2>
+            <p className="text-muted-foreground">Upload a photo of your room to begin</p>
+          </div>
           <UploadHero
             onImageSelect={handleImageSelect}
             isUploading={isGenerating}
@@ -233,14 +242,14 @@ export default function DashboardPage() {
             />
 
             {/* Options */}
-            <div className="grid sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="room-type">Room Type</Label>
+            <div className="grid sm:grid-cols-2 gap-6">
+              <div className="space-y-3">
+                <Label htmlFor="room-type" className="text-base font-semibold">Room Type</Label>
                 <Select
                   value={roomType}
                   onValueChange={(v) => setRoomType(v as RoomType)}
                 >
-                  <SelectTrigger id="room-type" className="bg-card">
+                  <SelectTrigger id="room-type" className="h-12 bg-card border-border/50 shadow-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -252,28 +261,28 @@ export default function DashboardPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="instructions">
+              <div className="space-y-3">
+                <Label htmlFor="instructions" className="text-base font-semibold">
                   Custom Instructions{" "}
-                  <span className="text-muted-foreground">(optional)</span>
+                  <span className="text-muted-foreground font-normal">(optional)</span>
                 </Label>
                 <Textarea
                   id="instructions"
                   placeholder="E.g., Add more plants, use warmer colors..."
                   value={instructions}
                   onChange={(e) => setInstructions(e.target.value)}
-                  className="h-[42px] min-h-[42px] bg-card resize-none"
+                  className="min-h-[48px] bg-card border-border/50 resize-none shadow-sm"
                 />
               </div>
             </div>
 
             {/* Generate Button */}
-            <div className="flex justify-center pt-4">
+            <div className="flex flex-col items-center gap-3 pt-6">
               <Button
                 size="lg"
                 onClick={handleGenerate}
                 disabled={!selectedStyle || isGenerating}
-                className="btn-shine bg-gradient-to-r from-primary to-emerald-600 hover:from-primary/90 hover:to-emerald-600/90 text-base px-8 h-12 rounded-full shadow-luxury"
+                className="btn-shine bg-gradient-to-r from-primary via-primary/90 to-primary text-base px-10 h-14 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 font-semibold"
               >
                 {isGenerating ? (
                   <>
@@ -287,35 +296,36 @@ export default function DashboardPage() {
                   </>
                 )}
               </Button>
+              <p className="text-sm text-muted-foreground flex items-center gap-2">
+                <Clock className="w-4 h-4" />
+                Uses 1 credit • Results in ~30 seconds
+              </p>
             </div>
-            <p className="text-center text-xs text-muted-foreground">
-              Uses 1 credit • Results in ~30 seconds
-            </p>
           </section>
         )}
 
         {/* Generation Progress */}
         {isGenerating && (
-          <section className="py-12 animate-fade-in">
-            <div className="flex flex-col items-center justify-center text-center space-y-6">
+          <section className="py-16 animate-fade-in">
+            <div className="flex flex-col items-center justify-center text-center space-y-8">
               <div className="relative">
-                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center animate-pulse">
-                  <Sparkles className="w-12 h-12 text-primary" />
+                <div className="w-28 h-28 rounded-2xl glass border-2 border-primary/30 flex items-center justify-center animate-pulse-glow">
+                  <Sparkles className="w-14 h-14 text-primary" />
                 </div>
-                <div className="absolute inset-0 rounded-full border-2 border-primary/30 animate-ping" />
+                <div className="absolute inset-0 rounded-2xl border-2 border-primary/20 animate-ping" />
               </div>
-              <div className="space-y-2">
-                <h3 className="font-display text-xl font-semibold">
+              <div className="space-y-3 max-w-lg">
+                <h3 className="text-2xl font-bold">
                   Creating Your Designs
                 </h3>
-                <p className="text-muted-foreground max-w-md">
+                <p className="text-muted-foreground text-base">
                   Our AI is analyzing your room and generating 4 unique design
                   variations. This usually takes about 30 seconds.
                 </p>
               </div>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Clock className="w-4 h-4" />
-                <span>Please wait...</span>
+              <div className="flex items-center gap-2 px-4 py-2 rounded-lg glass border border-border/50">
+                <Clock className="w-4 h-4 text-primary" />
+                <span className="text-sm font-medium">Please wait...</span>
               </div>
             </div>
           </section>
@@ -324,19 +334,19 @@ export default function DashboardPage() {
         {/* Generated Results */}
         {generatedImages.length > 0 && (
           <section className="space-y-6 animate-fade-in-up">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="font-display text-2xl font-semibold">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="space-y-1">
+                <h2 className="text-3xl font-bold">
                   Your Generated Designs
                 </h2>
-                <p className="text-muted-foreground text-sm mt-1">
+                <p className="text-muted-foreground">
                   Click on any design to view full size or download
                 </p>
               </div>
-              <Button variant="outline" asChild>
-                <Link href="/gallery">
+              <Button variant="outline" className="glass border-border/50 shadow-sm" asChild>
+                <Link href="/gallery" className="flex items-center gap-2">
                   View Gallery
-                  <ChevronRight className="w-4 h-4 ml-1" />
+                  <ChevronRight className="w-4 h-4" />
                 </Link>
               </Button>
             </div>
@@ -360,20 +370,20 @@ export default function DashboardPage() {
 
         {/* Recent Designs */}
         {!isLoadingRecent && recentDesigns.length > 0 && (
-          <section className="space-y-6 pt-8 border-t border-border animate-fade-in">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="font-display text-2xl font-semibold">
+          <section className="space-y-6 pt-10 border-t border-border/50 animate-fade-in">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div className="space-y-1">
+                <h2 className="text-3xl font-bold">
                   Recent Designs
                 </h2>
-                <p className="text-muted-foreground text-sm mt-1">
+                <p className="text-muted-foreground">
                   Your previously generated designs
                 </p>
               </div>
-              <Button variant="ghost" asChild>
-                <Link href="/gallery">
+              <Button variant="ghost" className="hover:bg-accent/50" asChild>
+                <Link href="/gallery" className="flex items-center gap-2">
                   View All
-                  <ChevronRight className="w-4 h-4 ml-1" />
+                  <ChevronRight className="w-4 h-4" />
                 </Link>
               </Button>
             </div>
@@ -396,18 +406,20 @@ export default function DashboardPage() {
 
         {/* Empty State for New Users */}
         {!selectedImage && !isLoadingRecent && recentDesigns.length === 0 && (
-          <section className="py-12 animate-fade-in">
-            <div className="text-center max-w-md mx-auto space-y-4">
-              <div className="w-16 h-16 mx-auto rounded-2xl bg-muted/50 flex items-center justify-center">
-                <ImageIcon className="w-8 h-8 text-muted-foreground" />
+          <section className="py-16 animate-fade-in">
+            <div className="text-center max-w-lg mx-auto space-y-6">
+              <div className="w-20 h-20 mx-auto rounded-2xl glass border border-border/50 flex items-center justify-center shadow-md">
+                <ImageIcon className="w-10 h-10 text-muted-foreground" />
               </div>
-              <h3 className="font-display text-xl font-semibold">
-                No designs yet
-              </h3>
-              <p className="text-muted-foreground text-sm">
-                Upload your first room photo above to start creating stunning
-                AI-powered interior designs.
-              </p>
+              <div className="space-y-2">
+                <h3 className="text-2xl font-bold">
+                  No designs yet
+                </h3>
+                <p className="text-muted-foreground">
+                  Upload your first room photo above to start creating stunning
+                  AI-powered interior designs.
+                </p>
+              </div>
             </div>
           </section>
         )}

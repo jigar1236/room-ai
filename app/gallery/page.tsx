@@ -108,6 +108,30 @@ export default function GalleryPage() {
     }
   };
 
+  const handleDeleteImage = async (imageId: string) => {
+    try {
+      const response = await fetch(`/api/designs/images?imageId=${imageId}`, {
+        method: "DELETE",
+      });
+
+      if (response.ok) {
+        // Remove the image from the designs state
+        setDesigns((prev) =>
+          prev.map((design) => ({
+            ...design,
+            generations: design.generations.filter((gen) => gen.id !== imageId),
+          })).filter((design) => design.generations.length > 0) // Remove designs with no images
+        );
+        toast.success("Image deleted");
+      } else {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to delete image");
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete image");
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="max-w-7xl mx-auto space-y-8">
@@ -140,6 +164,7 @@ export default function GalleryPage() {
               designs={designs}
               onFavorite={handleFavorite}
               onDelete={handleDelete}
+              onDeleteImage={handleDeleteImage}
             />
             
             {/* Load More */}
